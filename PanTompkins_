@@ -1,0 +1,210 @@
+"""
+MAE 156B Heart Rate Sensor
+AD8232 EKG Module: Pan-Tompkins Algorithm
+
+Joshua Conge
+"""
+import serial
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.signal import butter, filtfilt, find_peaks
+import time
+
+fs = 250
+
+USE_ARDUINO = False
+
+if USE_ARDUINO:
+    ser = serial.Serial('COM3', 115200) # change port
+
+# Test Signal
+def synthetic_ecg(fs=250, duration=5):
+    t = np.linspace(0, duration, fs * duration)
+    signal = np.zeros_like(t)
+
+    # --- Variable heart rate (60–110 BPM) ---
+    hr = np.random.uniform(60, 110)
+    beat_interval = int(fs * (60 / hr))
+
+    for i in range(0, len(t), beat_interval):
+        if i + 10 < len(t):
+            # Randomize QRS amplitude and width
+            amp = np.random.uniform(0.8, 2.0)
+            width = np.random.randint(2, 5)
+
+            signal[i:i+width] += [0] + [amp] + [0]*(width-2)
+            signal[i+width:i+2*width] += [0, -0.5*amp] + [0]*(width-2)
+
+    # -------------------------
+    # EXTREME NOISE SOURCES
+    # -------------------------
+
+    # 1. Strong baseline wander (respiration + drift)
+    baseline = (
+        0.5 * np.sin(2 * np.pi * 0.2 * t) +   # breathing
+        0.3 * np.sin(2 * np.pi * 0.05 * t)    # slow drift
+    )
+
+    # 2. Powerline interference (60 Hz + harmonics)
+    powerline = (
+        0.1 * np.sin(2 * np.pi * 60 * t) +
+        0.05 * np.sin(2 * np.pi * 120 * t)
+    )
+
+    # 3. Muscle noise (EMG-like, high freq)
+    muscle = 0.3 * np.random.randn(len(t))
+
+    # 4. Motion artifacts (big spikes + steps)
+    motion = np.zeros_like(t)
+    for _ in range(int(duration * 2)):
+        idx = np.random.randint(0, len(t)-20)
+        motion[idx:idx+20] += np.random.uniform(-2, 2)
+
+    # 5. Baseline jumps (electrode movement)
+    jumps = np.zeros_like(t)
+    for _ in range(int(duration)):
+        idx = np.random.randint(0, len(t))
+        jumps[idx:] += np.random.uniform(-0.5, 0.5)
+
+    # 6. Occasional missed or extra beats (arrhythmia simulation)
+    if np.random.rand() < 0.3:
+        skip_idx = np.random.randint(0, len(signal))
+        signal[skip_idx:skip_idx+beat_interval] = 0  # dropped beat
+
+    # Combine everything
+    noisy_signal = signal + baseline + powerline + muscle + motion + jumps
+
+    return noisy_signal
+
+# Read Serial Data from Arduino
+def read_data(n_samples=1000):
+    data = []
+    if USE_ARDUINO:
+        while len(data) < n_samples:
+            line = ser.readline().decode().strip()
+            if line == "!":
+                continue
+            try:
+                data.append(int(line))
+            except:
+                pass
+    else:
+        data = synthetic_ecg(fs, int(n_samples / fs))
+        
+    return np.array(data)
+
+## Pan-Tompkins Algorithm
+
+# Bandpass Filter
+def bandpass(signal, fs):
+    low, high = 5, 15 
+    b, a = butter(2, [low/(fs/2), high/(fs/2)], btype='band')
+    return filtfilt(b, a, signal)
+
+# Derivative Filter
+def derivative(signal):
+    return np.convolve(signal, [1, 2, 0, -2, -1], mode='same') / 8
+
+# Squaring Filter
+def squaring(signal):
+    return signal ** 2
+
+# MWI
+def moving_window(signal, fs):
+    window_size = int(0.15 * fs)
+    return np.convolve(signal, np.ones(window_size) / window_size, mode='same')
+
+# Peak Detection + Threshold
+def detect_peaks(integrated, fs):
+    distance = int(0.2 * fs) # 200 ms refractory period
+    threshold = np.mean(integrated) * 1.2
+    
+    peaks, _ = find_peaks(integrated, height=threshold, distance=distance)
+    return peaks
+
+def heart_rate(peaks, fs):
+    if len(peaks) < 2:
+        return 0
+    rr = np.diff(peaks) / fs
+    return 60 / np.mean(rr)
+
+plt.ion()
+fig, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(5, 1, figsize=(10,8), sharex=True)
+fig2, ax_hr = plt.subplots(figsize=(6,4))
+
+bpm_history = []
+time_history = []
+t0 = time.time()
+
+while True:
+    
+    signal = read_data(1000)
+    
+    filtered = bandpass(signal, fs)
+    diff = derivative(filtered)
+    squared = squaring(diff)
+    integrated = moving_window(squared, fs)
+    
+    peaks = detect_peaks(integrated, fs)
+    if len(peaks) > 1:
+        rr_intervals = np.diff(peaks) / fs
+        hr_inst = 60 / rr_intervals
+        
+        peak_times = peaks / fs
+        hr_times = peak_times[:-1] + rr_intervals / 2
+    else:
+        rr_intervals = np.array([])
+        hr_inst = np.array([])
+        hr_times = np.array([])
+        
+    hr = heart_rate(peaks, fs)
+    
+    
+    
+    print("Heart Rate: ", hr, " BPM")
+    # Raw ECG Data Plot
+    ax1.clear()
+    ax1.plot(signal, color='blue')
+    ax1.set_title("Raw ECG Data")
+    ax1.set_ylabel("Amplitude (A.U)")
+
+    # Filtered Waveform from Algorithm
+    ax2.clear()
+    ax2.plot(filtered, color='blue')
+    ax2.set_title("Bandpass Filter")
+    ax2.set_ylabel("Amplitude (A.U)")
+
+    ax3.clear()
+    ax3.plot(diff, color='blue')
+    ax3.set_title("Derivative Filter")
+    ax3.set_ylabel("Amplitude (A.U)")
+
+    
+    ax4.clear()
+    ax4.plot(squared, color='blue')
+    ax4.set_title("Squaring Filter")
+    ax4.set_ylabel("Amplitude (A.U)")
+
+    ax5.clear()
+    ax5.plot(integrated, color='orange')
+    ax5.scatter(peaks, integrated[peaks], color='red')
+    ax5.set_title("Processed Signal (Pan-Tompkins)")
+    ax5.set_xlabel("Samples")
+    ax5.set_ylabel("Amplitude (A.U)")
+
+    
+    ax_hr.clear()
+    if len(hr_inst) > 0:
+        ax_hr.plot(hr_times, hr_inst, marker='o')
+    ax_hr.set_title("Heart Rate vs. Time")
+    ax_hr.set_xlabel("Time (s)")
+    ax_hr.set_ylabel("Heart Rate (BPM)")
+    ax_hr.set_ylim(40, 180)
+    
+    plt.pause(0.01)
+    time.sleep(0.5)
+
+    print("raw std:", np.std(signal))
+    print("filtered std:", np.std(filtered))
+    print("diff std:", np.std(diff))
+    print("squared std:", np.std(squared))
