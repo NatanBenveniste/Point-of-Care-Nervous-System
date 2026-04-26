@@ -1,0 +1,24 @@
+const int ecgPin = A0;
+const int fs = 250;  // sampling frequency (Hz)
+unsigned long interval = 1000 / fs;
+
+void setup() {
+  Serial.begin(115200);  // faster = better
+  pinMode(10, INPUT);
+  pinMode(11, INPUT);
+}
+
+void loop() {
+  static unsigned long lastTime = 0;
+
+  if (millis() - lastTime >= interval) {
+    lastTime = millis();
+
+    if ((digitalRead(10) == 1) || (digitalRead(11) == 1)) {
+      Serial.println("!");  // leads off
+    } 
+    else {
+      Serial.println(analogRead(ecgPin));
+    }
+  }
+}
