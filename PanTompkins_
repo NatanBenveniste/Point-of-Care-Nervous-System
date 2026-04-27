@@ -16,17 +16,70 @@ USE_ARDUINO = False
 
 if USE_ARDUINO:
     ser = serial.Serial('COM3', 115200) # change port
+    
+def ecg_with_true_peaks(fs=250, duration=5):
+    t = np.linspace(0, duration, fs * duration)
+    signal = np.zeros_like(t)
+
+    hr = 72
+    beat_interval = int(fs * (60 / hr))
+
+    true_peaks = []
+
+    # 🔥 delay before first beat (0.5–1.0 sec)
+    start_delay = int(0.8 * fs)
+
+    for i in range(start_delay, len(t), beat_interval):
+        if i + 5 < len(t):
+
+            # R peak
+            signal[i:i+3] += [0, 1.5, 0]
+
+            # Q and S waves
+            if i - 2 >= 0:
+                signal[i-2:i+1] += [0, -0.2, 0]
+            signal[i+3:i+6] += [0, -0.4, 0]
+
+            true_peaks.append(i + 1)
+
+    # light noise (keep ground truth valid)
+    signal += 0.05 * np.random.randn(len(t))
+
+    return signal, np.array(true_peaks)
+
+def synthetic_ecg_clean_noisy(fs=250, duration=5):
+    t = np.linspace(0, duration, fs * duration)
+    signal = np.zeros_like(t)
+
+    hr = 75
+    beat_interval = int(fs * (60 / hr))
+
+    # --- delay before first beat (e.g., 0.5 sec) ---
+    start_delay = int(0.5 * fs)
+
+    for i in range(start_delay, len(t), beat_interval):
+        if i + 6 < len(t):
+            signal[i:i+3] += [0, 1.5, 0]
+            signal[i+3:i+6] += [0, -0.5, 0]
+
+    # small noise so it's not perfectly flat
+    signal += 0.05 * np.random.randn(len(t))
+
+    return signal
 
 # Test Signal
 def synthetic_ecg(fs=250, duration=5):
     t = np.linspace(0, duration, fs * duration)
     signal = np.zeros_like(t)
 
-    # --- Variable heart rate (60–110 BPM) ---
+# --- Variable heart rate (60–110 BPM) ---
     hr = np.random.uniform(60, 110)
     beat_interval = int(fs * (60 / hr))
 
-    for i in range(0, len(t), beat_interval):
+# --- Delay before first beat (e.g., 0.5–1 sec) ---
+    start_delay = int(np.random.uniform(0.5, 1.0) * fs)
+
+    for i in range(start_delay, len(t), beat_interval):
         if i + 10 < len(t):
             # Randomize QRS amplitude and width
             amp = np.random.uniform(0.8, 2.0)
@@ -35,47 +88,51 @@ def synthetic_ecg(fs=250, duration=5):
             signal[i:i+width] += [0] + [amp] + [0]*(width-2)
             signal[i+width:i+2*width] += [0, -0.5*amp] + [0]*(width-2)
 
-    # -------------------------
-    # EXTREME NOISE SOURCES
-    # -------------------------
+# -------------------------
+# EXTREME NOISE SOURCES
+# -------------------------
 
-    # 1. Strong baseline wander (respiration + drift)
     baseline = (
-        0.5 * np.sin(2 * np.pi * 0.2 * t) +   # breathing
-        0.3 * np.sin(2 * np.pi * 0.05 * t)    # slow drift
-    )
+        0.5 * np.sin(2 * np.pi * 0.2 * t) +
+        0.3 * np.sin(2 * np.pi * 0.05 * t)
+        )
 
-    # 2. Powerline interference (60 Hz + harmonics)
     powerline = (
         0.1 * np.sin(2 * np.pi * 60 * t) +
         0.05 * np.sin(2 * np.pi * 120 * t)
-    )
+        )
 
-    # 3. Muscle noise (EMG-like, high freq)
     muscle = 0.3 * np.random.randn(len(t))
 
-    # 4. Motion artifacts (big spikes + steps)
     motion = np.zeros_like(t)
     for _ in range(int(duration * 2)):
         idx = np.random.randint(0, len(t)-20)
         motion[idx:idx+20] += np.random.uniform(-2, 2)
 
-    # 5. Baseline jumps (electrode movement)
     jumps = np.zeros_like(t)
     for _ in range(int(duration)):
         idx = np.random.randint(0, len(t))
         jumps[idx:] += np.random.uniform(-0.5, 0.5)
 
-    # 6. Occasional missed or extra beats (arrhythmia simulation)
-    if np.random.rand() < 0.3:
-        skip_idx = np.random.randint(0, len(signal))
-        signal[skip_idx:skip_idx+beat_interval] = 0  # dropped beat
+# -------------------------
+# ADD NOISY START (key part)
+# -------------------------
 
-    # Combine everything
+# overwrite the beginning with noise (no QRS present)
+    signal[:start_delay] = 0.4 * np.random.randn(start_delay)
+
+# occasional dropped beat (keep this AFTER delay logic)
+    if np.random.rand() < 0.3:
+        skip_idx = np.random.randint(start_delay, len(signal)-beat_interval)
+        signal[skip_idx:skip_idx+beat_interval] = 0
+
+# -------------------------
+# COMBINE
+# -------------------------
     noisy_signal = signal + baseline + powerline + muscle + motion + jumps
 
     return noisy_signal
-
+   
 # Read Serial Data from Arduino
 def read_data(n_samples=1000):
     data = []
@@ -89,15 +146,15 @@ def read_data(n_samples=1000):
             except:
                 pass
     else:
-        data = synthetic_ecg(fs, int(n_samples / fs))
+        data, true_peaks = ecg_with_true_peaks(fs, int(n_samples / fs))
         
-    return np.array(data)
+    return np.array(data), np.array(true_peaks)
 
 ## Pan-Tompkins Algorithm
 
 # Bandpass Filter
 def bandpass(signal, fs):
-    low, high = 5, 15 
+    low, high = 5, 20 
     b, a = butter(2, [low/(fs/2), high/(fs/2)], btype='band')
     return filtfilt(b, a, signal)
 
@@ -120,6 +177,10 @@ def detect_peaks(integrated, fs):
     threshold = np.mean(integrated) * 1.2
     
     peaks, _ = find_peaks(integrated, height=threshold, distance=distance)
+    
+    trim = int(0.2 * fs)
+    peaks = peaks[peaks > trim]
+    
     return peaks
 
 def heart_rate(peaks, fs):
@@ -129,6 +190,55 @@ def heart_rate(peaks, fs):
     return 60 / np.mean(rr)
 
 plt.ion()
+
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10,6), sharex=True)
+
+
+
+while True:
+
+    signal, true_peaks = read_data(1000)
+    
+    filtered = bandpass(signal, fs)
+    diff = derivative(filtered)
+    squared = squaring(diff)
+    integrated = moving_window(squared, fs)
+    
+    peaks = detect_peaks(integrated, fs)
+    detected_peaks = peaks
+    
+    # FIGURE 1: RAW + FILTERED
+    ax1.clear()
+    ax1.plot(signal, label="Raw ECG", alpha=0.6)
+    ax1.plot(filtered, label="Filtered ECG", linewidth=2)
+    ax1.set_title("Raw vs Filtered ECG")
+    ax1.set_xlabel("Samples")
+    ax1.set_ylabel("Amplitude (A.U.)")
+    ax1.legend()
+
+    # FIGURE 2: PROCESSED SIGNAL
+    ax2.clear()
+    ax2.plot(integrated, color='orange', label="Integrated Signal")
+    ax2.scatter(peaks, integrated[peaks], color='red', label="Detected Peaks")
+    ax2.set_title("Processed Signal (Pan-Tompkins)")
+    ax2.set_xlabel("Samples")
+    ax2.set_ylabel("Amplitude (A.U.)")
+    ax2.legend()
+
+    # UPDATE
+    plt.pause(0.01)
+    time.sleep(0.5)
+
+    # Debug stats
+    print("raw std:", np.std(signal))
+    print("filtered std:", np.std(filtered))
+    print("diff std:", np.std(diff))
+    print("squared std:", np.std(squared))
+    
+    
+# Below is the code for each graph step in Pan-Tompkins algorithm
+
+"""
 fig, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(5, 1, figsize=(10,8), sharex=True)
 fig2, ax_hr = plt.subplots(figsize=(6,4))
 
@@ -158,10 +268,8 @@ while True:
         hr_times = np.array([])
         
     hr = heart_rate(peaks, fs)
-    
-    
-    
     print("Heart Rate: ", hr, " BPM")
+    
     # Raw ECG Data Plot
     ax1.clear()
     ax1.plot(signal, color='blue')
@@ -208,3 +316,4 @@ while True:
     print("filtered std:", np.std(filtered))
     print("diff std:", np.std(diff))
     print("squared std:", np.std(squared))
+    """
