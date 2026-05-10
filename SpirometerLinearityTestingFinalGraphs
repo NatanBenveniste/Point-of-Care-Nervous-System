@@ -1,0 +1,133 @@
+import serial
+import time
+import statistics
+import matplotlib.pyplot as plt
+import numpy as np
+from collections import deque
+
+# -----------------------------
+# SETTINGS
+# -----------------------------
+PORT = "COM8"
+BAUD = 115200
+
+NUM_FLOW_SETTINGS = 3
+
+COLLECTION_TIME = 15        # seconds collected per flow setting
+SETTLING_TIME = 5           # seconds ignored at start of each setting
+ROLLING_WINDOW = 60         # smoothing window, 60 samples ≈ 3 sec at 20 Hz
+
+# Enter your known flow rates here
+# Example: [0.91, 1.38, 1.81]
+flow_rates = [0.91, 1.38, 1.81]
+
+# -----------------------------
+# SERIAL SETUP
+# -----------------------------
+ser = serial.Serial(PORT, BAUD, timeout=1)
+time.sleep(2)
+
+average_deltaP_values = []
+
+# -----------------------------
+# FUNCTION TO READ ONE VALID LINE
+# -----------------------------
+def read_deltaP():
+    while True:
+        raw = ser.readline().decode("utf-8", errors="ignore").strip()
+
+        if not raw:
+            continue
+
+        if raw.startswith("time_ms"):
+            continue
+
+        parts = raw.split(",")
+
+        # Expected Arduino format:
+        # time_ms,upstream_Pa,downstream_Pa,deltaP_raw_Pa,deltaP_corrected_Pa
+        if len(parts) != 5:
+            continue
+
+        try:
+            deltaP = float(parts[4])
+            return deltaP
+        except ValueError:
+            continue
+
+# -----------------------------
+# FLOW TEST LOOP
+# -----------------------------
+for i in range(NUM_FLOW_SETTINGS):
+    input(f"\nSet flow rate {i+1} to {flow_rates[i]} and press Enter to start...")
+
+    print(f"Collecting flow rate {i+1}...")
+
+    start_time = time.time()
+    filtered_values = []
+    avg_window = deque(maxlen=ROLLING_WINDOW)
+
+    while time.time() - start_time < COLLECTION_TIME:
+        elapsed = time.time() - start_time
+        deltaP = read_deltaP()
+
+        avg_window.append(deltaP)
+        filtered_deltaP = statistics.mean(avg_window)
+
+        # Ignore first few seconds while flow stabilizes
+        if elapsed > SETTLING_TIME:
+            filtered_values.append(filtered_deltaP)
+
+        print(f"{elapsed:.2f} s   raw = {deltaP:.2f} Pa   filtered = {filtered_deltaP:.2f} Pa")
+
+    average_deltaP = statistics.mean(filtered_values)
+    std_deltaP = statistics.stdev(filtered_values) if len(filtered_values) > 1 else 0
+
+    average_deltaP_values.append(average_deltaP)
+
+    print(f"\nFlow rate {i+1} complete.")
+    print(f"Average ΔP = {average_deltaP:.2f} Pa")
+    print(f"Std dev ΔP = {std_deltaP:.2f} Pa")
+
+ser.close()
+
+# -----------------------------
+# LINEAR REGRESSION
+# -----------------------------
+x = np.array(flow_rates)
+y = np.array(average_deltaP_values)
+
+slope, intercept = np.polyfit(x, y, 1)
+y_fit = slope * x + intercept
+
+# R-squared
+ss_res = np.sum((y - y_fit) ** 2)
+ss_tot = np.sum((y - np.mean(y)) ** 2)
+r_squared = 1 - (ss_res / ss_tot)
+
+# -----------------------------
+# PRINT RESULTS
+# -----------------------------
+print("\nFinal Results:")
+for i in range(NUM_FLOW_SETTINGS):
+    print(f"Flow rate {flow_rates[i]} -> Average ΔP = {average_deltaP_values[i]:.2f} Pa")
+
+print(f"\nLinear fit:")
+print(f"ΔP = {slope:.4f}(Flow Rate) + {intercept:.4f}")
+print(f"R² = {r_squared:.4f}")
+
+# -----------------------------
+# PLOT LINEARITY GRAPH
+# -----------------------------
+plt.figure()
+
+plt.scatter(x, y, label="Measured Data")
+plt.plot(x, y_fit, label=f"Linear Fit: ΔP = {slope:.2f}x + {intercept:.2f}")
+
+plt.xlabel("Flow Rate")
+plt.ylabel("Average ΔP [Pa]")
+plt.title(f"Spirometer Linearity Test\nR² = {r_squared:.4f}")
+plt.grid(True)
+plt.legend()
+
+plt.show()
