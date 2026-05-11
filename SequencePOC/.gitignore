@@ -1,0 +1,53 @@
+# =========================
+# Build output
+# =========================
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+Makefile
+
+# =========================
+# Raspberry Pi Pico binaries
+# =========================
+*.uf2
+*.elf
+*.bin
+*.hex
+*.map
+*.dis
+*.lst
+
+# =========================
+# VS Code
+# Ignore everything except
+# shared project settings
+# =========================
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# =========================
+# Python
+# =========================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# =========================
+# OS junk
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Logs / temp files
+# =========================
+*.log
+*.tmp
+*.bak
