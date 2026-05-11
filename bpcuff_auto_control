@@ -1,0 +1,316 @@
+#include <Arduino.h>
+#include <Adafruit_LPS2X.h>
+#include <Adafruit_Sensor.h>
+
+#define LPS_CS   10
+#define LPS_SCK  13
+#define LPS_MISO 12
+#define LPS_MOSI 11
+
+Adafruit_LPS22 lpsSensor;
+
+const int IN1   = 3;
+const int IN2   = 6;
+const int EEP   = 2;
+const int VALVE = 4;
+
+const float HPA_TO_MMHG = 0.750062f;
+
+// Since your values needed x100 correction before,
+// this should stay 1.0 if the library is already returning hPa.
+const float RAW_TO_HPA = 1.0f;
+
+float ambient_raw = 0.0f;
+
+bool streamData = false;
+unsigned long lastSampleMs = 0;
+const unsigned long SAMPLE_INTERVAL_MS = 20;   // ~50 Hz
+
+char cmdBuffer[32];
+byte cmdIndex = 0;
+
+// Auto measurement settings
+const float AUTO_TARGET_MMHG = 190.0f;
+const float AUTO_STOP_MMHG   = 40.0f;
+const unsigned long AUTO_TIMEOUT_MS = 30000;
+
+// -------------------------------
+void printCSVHeader();
+void readSerialCommands();
+void handleCommand(const char* cmd);
+void printHelp();
+void pumpForward();
+void stopPump();
+void valveOpen();
+void valveClose();
+void valvePulse(int ms);
+float readPressureRaw();
+float rawToHpa(float rawPressure);
+float gaugePressureMmHg(float rawPressure);
+void zeroAmbient();
+void logOneSample();
+void runAutoMeasurement();
+
+// -------------------------------
+void setup() {
+  Serial.begin(115200);
+  delay(200);
+
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(EEP, OUTPUT);
+  pinMode(VALVE, OUTPUT);
+
+  stopPump();
+  valveClose();
+
+  if (!lpsSensor.begin_SPI(LPS_CS, LPS_SCK, LPS_MISO, LPS_MOSI)) {
+    Serial.println("ERROR,Sensor not found");
+    while (1) {
+      delay(10);
+    }
+  }
+
+  delay(100);
+  ambient_raw = readPressureRaw();
+
+  Serial.println("READY");
+  printHelp();
+  Serial.println("Logging is OFF at startup. Type stream_on to start.");
+}
+
+// -------------------------------
+void loop() {
+  readSerialCommands();
+
+  if (streamData) {
+    unsigned long now = millis();
+    if (now - lastSampleMs >= SAMPLE_INTERVAL_MS) {
+      lastSampleMs = now;
+      logOneSample();
+    }
+  }
+}
+
+// -------------------------------
+void printCSVHeader() {
+  Serial.println("time_ms,pressure_mmHg");
+}
+
+// -------------------------------
+void logOneSample() {
+  float gauge_mmHg = gaugePressureMmHg(readPressureRaw());
+
+  Serial.print(millis());
+  Serial.print(",");
+  Serial.println(gauge_mmHg, 3);
+}
+
+// -------------------------------
+void readSerialCommands() {
+  while (Serial.available()) {
+    char c = Serial.read();
+
+    if (c == '\r') continue;
+
+    if (c == '\n') {
+      cmdBuffer[cmdIndex] = '\0';
+      handleCommand(cmdBuffer);
+      cmdIndex = 0;
+    } else {
+      if (cmdIndex < sizeof(cmdBuffer) - 1) {
+        cmdBuffer[cmdIndex++] = c;
+      }
+    }
+  }
+}
+
+void handleCommand(const char* cmd) {
+  if (strcmp(cmd, "zero") == 0) {
+    zeroAmbient();
+    Serial.println("ACK,zero");
+  }
+  else if (strcmp(cmd, "pump") == 0) {
+    pumpForward();
+    Serial.println("ACK,pump");
+  }
+  else if (strcmp(cmd, "stop") == 0) {
+    stopPump();
+    valveClose();
+    Serial.println("ACK,stop");
+  }
+  else if (strcmp(cmd, "valve") == 0) {
+    valveOpen();
+    Serial.println("ACK,valve");
+  }
+  else if (strcmp(cmd, "close") == 0) {
+    valveClose();
+    Serial.println("ACK,close");
+  }
+  else if (strcmp(cmd, "pulse") == 0) {
+    valvePulse(100);
+    Serial.println("ACK,pulse");
+  }
+  else if (strcmp(cmd, "stream_on") == 0) {
+    streamData = true;
+    Serial.println("ACK,stream_on");
+    printCSVHeader();
+  }
+  else if (strcmp(cmd, "stream_off") == 0) {
+    streamData = false;
+    Serial.println("ACK,stream_off");
+  }
+  else if (strcmp(cmd, "auto") == 0) {
+    Serial.println("ACK,auto");
+    runAutoMeasurement();
+  }
+  else if (strcmp(cmd, "help") == 0) {
+    printHelp();
+  }
+  else if (strlen(cmd) > 0) {
+    Serial.print("ERR,unknown_command,");
+    Serial.println(cmd);
+  }
+}
+
+void printHelp() {
+  Serial.println("Commands:");
+  Serial.println("zero");
+  Serial.println("pump");
+  Serial.println("stop");
+  Serial.println("valve");
+  Serial.println("close");
+  Serial.println("pulse");
+  Serial.println("stream_on");
+  Serial.println("stream_off");
+  Serial.println("auto");
+  Serial.println("help");
+}
+
+// -------------------------------
+void pumpForward() {
+  digitalWrite(EEP, HIGH);
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+}
+
+void stopPump() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  digitalWrite(EEP, LOW);
+}
+
+void valveOpen() {
+  digitalWrite(VALVE, HIGH);
+}
+
+void valveClose() {
+  digitalWrite(VALVE, LOW);
+}
+
+void valvePulse(int ms) {
+  for (int i = 0; i < 3; i++) {
+    valveOpen();
+    delay(ms);
+    valveClose();
+    delay(ms);
+  }
+}
+
+// -------------------------------
+float readPressureRaw() {
+  sensors_event_t pressure;
+  sensors_event_t temp;
+  lpsSensor.getEvent(&pressure, &temp);
+  return pressure.pressure;
+}
+
+float rawToHpa(float rawPressure) {
+  return rawPressure / RAW_TO_HPA;
+}
+
+float gaugePressureMmHg(float rawPressure) {
+  float gauge_hPa = rawToHpa(rawPressure) - rawToHpa(ambient_raw);
+  return gauge_hPa * HPA_TO_MMHG;
+}
+
+// -------------------------------
+void zeroAmbient() {
+  stopPump();
+  valveOpen();
+  delay(3000);
+  valveClose();
+  delay(300);
+
+  ambient_raw = readPressureRaw();
+}
+
+// -------------------------------
+void runAutoMeasurement() {
+  Serial.println("AUTO,start");
+
+  // 1. Zero
+  zeroAmbient();
+  Serial.println("AUTO,zero_done");
+
+  // 2. Start logging
+  streamData = true;
+  printCSVHeader();
+  Serial.println("AUTO,stream_on");
+
+  // 3. Pump until target
+  valveClose();
+  pumpForward();
+  Serial.println("AUTO,pumping");
+
+  unsigned long t0 = millis();
+  while (true) {
+    unsigned long now = millis();
+    if (now - lastSampleMs >= SAMPLE_INTERVAL_MS) {
+      lastSampleMs = now;
+      logOneSample();
+    }
+
+    float p = gaugePressureMmHg(readPressureRaw());
+    if (p >= AUTO_TARGET_MMHG) {
+      break;
+    }
+
+    if (millis() - t0 > AUTO_TIMEOUT_MS) {
+      stopPump();
+      streamData = false;
+      Serial.println("AUTO,error_timeout");
+      return;
+    }
+  }
+
+  // 4. Stop pump
+  stopPump();
+  Serial.println("AUTO,pump_stop");
+
+  // Small settle delay
+  delay(1000);
+
+  // 5. Open valve and deflate while logging
+  valveOpen();
+  Serial.println("AUTO,valve_open");
+
+  while (true) {
+    unsigned long now = millis();
+    if (now - lastSampleMs >= SAMPLE_INTERVAL_MS) {
+      lastSampleMs = now;
+      logOneSample();
+    }
+
+    float p = gaugePressureMmHg(readPressureRaw());
+    if (p <= AUTO_STOP_MMHG) {
+      break;
+    }
+  }
+
+  // 6. Stop logging at 40 mmHg
+  valveClose();
+  streamData = false;
+  Serial.println("AUTO,stream_off");
+  Serial.println("AUTO,done");
+}
