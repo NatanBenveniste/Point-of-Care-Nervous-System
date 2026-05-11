@@ -16,7 +16,6 @@ import threading
 from collections import deque
 import time
 from scipy.io import savemat
- 
 
 fs = 250
 
@@ -28,69 +27,54 @@ except serial.SerialException as e:
     print("Is Arduino IDE Serial Monitor open? Is another script running?")
     sys.exit(1)
 
-# Shared buffer between reader and processor
 buffer = deque(maxlen=5000)
 lock = threading.Lock()
-
 stop_event = threading.Event()
 
 def read_serial():
     while not stop_event.is_set():
         try:
-            line = ser.readline().decode().strip()
-            if not line:          # skip empty lines
+            line = ser.readline().decode('utf-8', errors='ignore').strip()
+            if not line:
                 continue
-            if line in ("!", "-1"):
+
+            # Reject leads-off sentinel
+            if line.startswith("-1") or line == "!":
                 continue
-            sample = int(line)    # only reaches here if line is a number
+
+            token = line.split('|')[0].strip()
+
+            sample = int(token)
             with lock:
                 buffer.append(sample)
-        except ValueError:        # catch bad conversions specifically
+
+        except ValueError:
             pass
         except Exception as e:
             print(f"Serial error: {e}")
 
-stop_event.clear()  # reset it before starting fresh
+stop_event.clear()
 reader = threading.Thread(target=read_serial, daemon=True)
 reader.start()
 
-def get_chunk(n_samples=2500):
-    """Grab a chunk from the buffer, normalize, and return it."""
-    while True:
-        with lock:
-            if len(buffer) >= n_samples:
-                chunk = list(buffer)[-n_samples:]  # take most recent samples
-                break
-        time.sleep(0.05)  # wait for buffer to fill
-    
-    signal = np.array(chunk)
-    signal = (signal - np.mean(signal)) / (np.std(signal) + 1e-6)
-    return signal
+# Pan-Tompkins Algorithm
 
-## Pan-Tompkins Algorithm
-
-# Bandpass Filter
 def bandpass(signal, fs):
-    low, high = 5, 15 
-    b, a = butter(2, [low/(fs/2), high/(fs/2)], btype='band')
+    low, high = 8, 20
+    b, a = butter(2, [low / (fs / 2), high / (fs / 2)], btype='band')
     return filtfilt(b, a, signal)
 
-# Derivative Filter
 def derivative(signal):
     return np.convolve(signal, [1, 2, 0, -2, -1], mode='same') / 8
 
-# Squaring Filter
 def squaring(signal):
     return signal ** 2
 
-# MWI
 def moving_window(signal, fs):
     window_size = int(0.15 * fs)
     return np.convolve(signal, np.ones(window_size) / window_size, mode='same')
 
-# Peak Detection + Threshold
 def detect_peaks(integrated, filtered, fs):
-
     coarse_peaks, _ = find_peaks(
         integrated,
         distance=int(0.4 * fs),
@@ -102,20 +86,18 @@ def detect_peaks(integrated, filtered, fs):
     TH1I = TH2I = TH1F = TH2F = 0.0
 
     final = []
-    refractory = int(0.2 * fs)       # 200ms
+    refractory = int(0.2 * fs)
     last_peak = -np.inf
     window = int(0.08 * fs)
 
-    # RR averaging — dual buffer like the reference implementation
-    RR1 = []   # all accepted beats
-    RR2 = []   # only physiologically regular beats
+    RR1 = []
+    RR2 = []
     RR_AVG1 = 0.0
     RR_AVG2 = 0.0
     LOW_LIM  = 0.92
     HIGH_LIM = 1.16
-    MISSED_LIM = 1.66   # if gap > 166% of RR_AVG2, trigger searchback
+    MISSED_LIM = 1.66
 
-    # Initialization
     init_window = np.max(integrated[:int(2 * fs)])
     SPKI = 0.6 * init_window
     NPKI = 0.1 * init_window
@@ -134,34 +116,28 @@ def detect_peaks(integrated, filtered, fs):
     TH2F = 0.5 * TH1F
 
     def update_rr(peak_sample):
-        """Update dual RR buffers and return updated averages."""
         nonlocal RR_AVG1, RR_AVG2
         if len(final) >= 1:
-            rr = (peak_sample - final[-1]) / fs * 1000  # ms
+            rr = (peak_sample - final[-1]) / fs * 1000
             RR1.append(rr)
             if len(RR1) > 8: RR1.pop(0)
             RR_AVG1 = np.mean(RR1)
-
-            # Only add to RR2 if within normal bounds
             if RR_AVG2 == 0 or (LOW_LIM * RR_AVG2 <= rr <= HIGH_LIM * RR_AVG2):
                 RR2.append(rr)
                 if len(RR2) > 8: RR2.pop(0)
                 RR_AVG2 = np.mean(RR2)
 
-    searchback_done = set()  # track which gaps we've already searched back through
+    searchback_done = set()
 
     i = 0
     while i < len(coarse_peaks):
         p = coarse_peaks[i]
 
-        # --- SEARCHBACK CHECK ---
-        # If RR_AVG2 is established and current gap is too long, search back first
         if (len(final) > 0 and RR_AVG2 > 0 and
                 (p - final[-1]) / fs * 1000 > MISSED_LIM * RR_AVG2 and
                 i not in searchback_done):
 
             searchback_done.add(i)
-            # Search coarse peaks between last accepted and current
             last_idx = np.searchsorted(coarse_peaks, final[-1])
             for j in range(last_idx + 1, i):
                 sp = coarse_peaks[j]
@@ -172,21 +148,17 @@ def detect_peaks(integrated, filtered, fs):
                 s_end = min(len(filtered), sp + window)
                 sf_peak = s_start + np.argmax(filtered[s_start:s_end])
                 sf_val = filtered[sf_peak]
-
-                # Use lower TH2 thresholds for searchback
                 if si_val >= TH2I and sf_val >= TH2F:
                     final.append(sp)
                     update_rr(sp)
-                    # Searchback uses stronger weighting (0.25 per reference)
                     SPKI = 0.25 * si_val + 0.75 * SPKI
                     SPKF = 0.25 * sf_val + 0.75 * SPKF
                     TH1I = NPKI + 0.25 * (SPKI - NPKI)
                     TH2I = 0.5 * TH1I
                     TH1F = NPKF + 0.25 * (SPKF - NPKF)
                     TH2F = 0.5 * TH1F
-                    break  # only recover one beat per searchback
+                    break
 
-        # --- NORMAL CLASSIFICATION ---
         if p - last_peak < refractory:
             i += 1
             continue
@@ -214,7 +186,6 @@ def detect_peaks(integrated, filtered, fs):
 
         i += 1
 
-    # Deduplication
     final = np.array(sorted(set(final)))
     if len(final) > 1:
         keep = np.concatenate(([True], np.diff(final) >= refractory))
@@ -222,39 +193,34 @@ def detect_peaks(integrated, filtered, fs):
 
     return final
 
+
 def heart_rate(peaks, fs):
     if len(peaks) < 2:
         return 0
-    
     rr = np.diff(peaks) / fs
-    print("RR intervals:", rr)
-    rr = rr[(rr > 0.5) & (rr < 1.5)]
-    
+    rr = rr[(rr > 0.35) & (rr < 1.5)]
     if len(rr) == 0:
         return 0
+    med = np.median(rr)
+    rr  = rr[np.abs(rr - med) < 0.3]
+    return 60 / np.mean(rr) if len(rr) > 0 else 0
 
-    return 60 / np.mean(rr)
+# Plots Setup
 
 plt.ion()
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10,6))
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6))
 ax1.set_title("Raw vs Filtered ECG")
 ax1.set_xlabel("Time (s)")
 ax1.set_ylabel("Amplitude (A.U.)")
 ax2.set_title("Processed Signal (Pan-Tompkins)")
 ax2.set_xlabel("Time (s)")
 ax2.set_ylabel("Amplitude (A.U.)")
-
-line_raw,        = ax1.plot([], [], label="Raw ECG", alpha=0.6)
-line_filtered,   = ax1.plot([], [], label="Filtered ECG", linewidth=2)
-line_integrated, = ax2.plot([], [], color='orange', label="Integrated Signal")
-scatter_peaks    = ax2.scatter([], [], color='red', label="Detected Peaks", zorder=5)
-
 ax1.legend()
 ax2.legend()
 fig.canvas.draw()
 
 time.sleep(10)
-hr_history = deque(maxlen=5)  # this stays OUTSIDE the loop
+hr_history = deque(maxlen=5)
 start_time = time.time()
 
 try:
@@ -264,135 +230,58 @@ try:
                 plt.pause(0.1)
                 continue
             chunk = list(buffer)[-2500:]
-    
-        signal = np.array(chunk)
+
+        signal = np.array(chunk, dtype=np.float64)
         signal = (signal - np.mean(signal)) / (np.std(signal) + 1e-6)
         signal = np.clip(signal, -4, 4)
-    
+
         elapsed = time.time() - start_time
         x = np.arange(len(signal)) / fs + (elapsed - len(signal) / fs)
-    
+
         ax1.clear()
         ax2.clear()
-    
+
         filtered   = bandpass(signal, fs)
         diff       = derivative(filtered)
         squared    = squaring(diff)
         integrated = moving_window(squared, fs)
+        # Temporary raw diagnostic — no adaptive threshold, just find_peaks
+        raw_peaks, _ = find_peaks(integrated, distance=int(0.3 * fs), height=np.percentile(integrated, 40))
         peaks      = detect_peaks(integrated, filtered, fs)
         hr         = heart_rate(peaks, fs)
-    
-        ax1.plot(x, signal, label="Raw ECG", alpha=0.6)
+
+        ax1.plot(x, signal,  label="Raw ECG",      alpha=0.6)
         ax1.plot(x, filtered, label="Filtered ECG", linewidth=2)
+        # In your ax1 plot block, add:
+        ax1.scatter(x[peaks], filtered[peaks], color='green', zorder=6, s=40, label="Detected peaks (filtered)")
         ax1.set_ylim(-4, 4)
         ax1.set_xlim(x[0], x[-1])
         ax1.legend()
-    
+
         ax2.plot(x, integrated, color='orange', label="Integrated Signal")
         if len(peaks) > 0:
             ax2.scatter(x[peaks], integrated[peaks], color='red', zorder=5)
         ax2.set_xlim(x[0], x[-1])
         ax2.legend()
-    
+
         hr_history.append(hr)
         hr_smooth = np.mean(hr_history)
         fig.suptitle(f"Live ECG | HR: {hr_smooth:.1f} BPM", fontsize=13)
-    
+
         plt.pause(0.1)
-        print(f"HR: {hr_smooth:.1f} BPM (raw: {hr:.1f}) | Peaks: {len(peaks)}")
 
 except KeyboardInterrupt:
     print("Stopping recording...")
     stop_event.set()
+    plt.close('all')
     ser.close()
     savemat('ecg_recording.mat', {
-        'signal':     np.array(signal, dtype=np.float64),
-        'filtered':   np.array(filtered, dtype=np.float64),
+        'signal':     np.array(signal,     dtype=np.float64),
+        'filtered':   np.array(filtered,   dtype=np.float64),
         'integrated': np.array(integrated, dtype=np.float64),
-        'peaks':      np.array(peaks, dtype=np.float64),
+        'peaks':      np.array(peaks,      dtype=np.float64),
         'hr':         np.float64(hr_smooth),
         'fs':         np.float64(fs),
-        'timestamp':  np.float64(time.time())
+        'timestamp':  np.float64(time.time()),
     })
     print("Data saved to ecg_recording.mat")
-# Below is the code for each graph step in Pan-Tompkins algorithm
-
-"""
-fig, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(5, 1, figsize=(10,8), sharex=True)
-fig2, ax_hr = plt.subplots(figsize=(6,4))
-
-bpm_history = []
-time_history = []
-t0 = time.time()
-
-while True:
-    
-    signal = read_data(2500)
-    
-    filtered = bandpass(signal, fs)
-    diff = derivative(filtered)
-    squared = squaring(diff)
-    integrated = moving_window(squared, fs)
-    
-    peaks = detect_peaks(integrated, fs)
-    if len(peaks) > 1:
-        rr_intervals = np.diff(peaks) / fs
-        hr_inst = 60 / rr_intervals
-        
-        peak_times = peaks / fs
-        hr_times = peak_times[:-1] + rr_intervals / 2
-    else:
-        rr_intervals = np.array([])
-        hr_inst = np.array([])
-        hr_times = np.array([])
-        
-    hr = heart_rate(peaks, fs)
-    print("Heart Rate: ", hr, " BPM")
-    
-    # Raw ECG Data Plot
-    ax1.clear()
-    ax1.plot(signal, alpha=0.6)
-    ax1.set_title("Raw ECG Data")
-    ax1.set_ylabel("Amplitude (A.U)")
-
-    # Filtered Waveform from Algorithm
-    ax2.clear()
-    ax2.plot(filtered, alpha=0.6)
-    ax2.set_title("Bandpass Filter")
-    ax2.set_ylabel("Amplitude (A.U)")
-
-    ax3.clear()
-    ax3.plot(diff, alpha=0.6)
-    ax3.set_title("Derivative Filter")
-    ax3.set_ylabel("Amplitude (A.U)")
-
-    
-    ax4.clear()
-    ax4.plot(squared, alpha=0.6)
-    ax4.set_title("Squaring Filter")
-    ax4.set_ylabel("Amplitude (A.U)")
-
-    ax5.clear()
-    ax5.plot(integrated, color='orange')
-    ax5.scatter(peaks, integrated[peaks], color='red')
-    ax5.set_title("Processed Signal (Pan-Tompkins)")
-    ax5.set_xlabel("Samples")
-    ax5.set_ylabel("Amplitude (A.U)")
-
-    
-    ax_hr.clear()
-    if len(hr_inst) > 0:
-        ax_hr.plot(hr_times, hr_inst, marker='o')
-    ax_hr.set_title("Heart Rate vs. Time")
-    ax_hr.set_xlabel("Time (s)")
-    ax_hr.set_ylabel("Heart Rate (BPM)")
-    ax_hr.set_ylim(40, 180)
-    
-    plt.pause(0.01)
-    time.sleep(0.5)
-
-    print("raw std:", np.std(signal))
-    print("filtered std:", np.std(filtered))
-    print("diff std:", np.std(diff))
-    print("squared std:", np.std(squared))
-    """
