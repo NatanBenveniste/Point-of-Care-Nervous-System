@@ -61,18 +61,18 @@ void loop() {
 
   delay(15000);
 
-  Serial.println("Text demo");
+  Serial.println("Skipping Text demo");
   // large block of text
   display.clearBuffer();
   display.setTextSize(1);
-  testdrawtext(
-      "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Curabitur "
-      "adipiscing ante sed nibh tincidunt feugiat. Maecenas enim massa, "
-      "fringilla sed malesuada et, malesuada sit amet turpis. Sed porttitor "
-      "neque ut ante pretium vitae malesuada nunc bibendum. Nullam aliquet "
-      "ultrices massa eu hendrerit. Ut sed nisi lorem. In vestibulum purus a "
-      "tortor imperdiet posuere. ",
-      EPD_BLACK);
+  // testdrawtext(
+  //     "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Curabitur "
+  //     "adipiscing ante sed nibh tincidunt feugiat. Maecenas enim massa, "
+  //     "fringilla sed malesuada et, malesuada sit amet turpis. Sed porttitor "
+  //     "neque ut ante pretium vitae malesuada nunc bibendum. Nullam aliquet "
+  //     "ultrices massa eu hendrerit. Ut sed nisi lorem. In vestibulum purus a "
+  //     "tortor imperdiet posuere. ",
+  //     EPD_BLACK);
   display.display();
 
   delay(15000);
