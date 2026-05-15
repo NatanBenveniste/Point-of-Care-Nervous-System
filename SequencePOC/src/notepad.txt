@@ -1,4 +1,4 @@
-EPD DEMO ON DEFAULT SPI (MODULAR)
+EPD DEMO ON DEFAULT SPI (MODULAR) / not working
 
 /***************************************************
   Adafruit invests time and resources providing this open source code,
