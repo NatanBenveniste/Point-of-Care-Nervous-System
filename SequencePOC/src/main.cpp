@@ -1,58 +1,41 @@
 #include <Arduino.h>
 #include <motorhelper.h>
+#include <displaymanager.h>
 
 
 #define chargePin 26
+bool showCharge = false;
+
+#define buttonPin 27
 
 MotorControl control;
+DisplayManager screen;
 
 void setup() {
   Serial.begin(115200);
   delay(500);
-
   pinMode(chargePin, INPUT);
+  pinMode(buttonPin, INPUT_PULLUP);
+
 
   control.setupHardware();
+  // screen.init();
 }
 
 void loop() {
-  if (!Serial.available()) return;
-  
-  String cmd = Serial.readStringUntil('\n');
-  cmd.trim();
-
-  
-  if (cmd == "pump") {
-    control.pumpForward();
-    Serial.println("ACK,pump");
+  // screen.runDemo();
+  int button = digitalRead(buttonPin);
+  if (button == LOW) {
+    Serial.println("next");
   }
 
-  else if (cmd == "stop") {
-    control.stopPump();
-    control.valveClose();
-    Serial.println("ACK,stop");
+
+  if (showCharge) {
+    long adcraw = analogRead(chargePin);
+    float batVoltage = (adcraw/1024.0) * 3.3;
+    Serial.println(adcraw);
+    Serial.println(batVoltage);
   }
 
-  else if (cmd == "valve") {
-    control.valveOpen();
-    Serial.println("ACK,valve");
-  }
-
-  else if (cmd == "close") {
-    control.valveClose();
-    Serial.println("ACK,close");
-  }
-
-  else if (cmd == "pulse") {
-    control.valvePulse(100);
-    Serial.println("ACK,pulse");
-  }
-
-  delay(20); // ~50 Hz
-
-long adcraw = analogRead(chargePin);
-float batVoltage = (adcraw/1024.0) * 3.3;
-Serial.println(adcraw);
-Serial.println(batVoltage);
-delay(500);
+  delay(50);
 }

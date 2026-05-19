@@ -8,15 +8,10 @@ DisplayManager::DisplayManager()
 void DisplayManager::init() {
     Serial.println("Starting");
 
+    pinMode(EPD_ENA, OUTPUT);
     pinMode(EPD_BUSY, INPUT);
-
-    EPD_SPI.setSCK(EPD_SCK);
-    EPD_SPI.setTX(EPD_MOSI);
-    EPD_SPI.setRX(EPD_MISO);
-    Serial.println("EPD Configured SPI");
-
-    EPD_SPI.begin();
-    Serial.println("EPD Began SPI");
+    digitalWrite(EPD_ENA, HIGH);
+    delay(100);
 
     Serial.print("Busy pin state: ");
     Serial.println(digitalRead(EPD_BUSY));
