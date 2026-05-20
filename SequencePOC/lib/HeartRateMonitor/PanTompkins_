@@ -1,0 +1,287 @@
+"""
+MAE 156B Heart Rate Sensor
+AD8232 EKG Module: Pan-Tompkins Algorithm
+
+Joshua Conge
+"""
+import sys
+import serial
+import serial.tools.list_ports
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Qt5Agg')
+from scipy.signal import butter, filtfilt, find_peaks
+import threading
+from collections import deque
+import time
+from scipy.io import savemat
+
+fs = 250
+
+try:
+    ser = serial.Serial('COM3', 115200, timeout=0.1)
+    print("Connected to Arduino on COM3")
+except serial.SerialException as e:
+    print(f"Could not open port: {e}")
+    print("Is Arduino IDE Serial Monitor open? Is another script running?")
+    sys.exit(1)
+
+buffer = deque(maxlen=5000)
+lock = threading.Lock()
+stop_event = threading.Event()
+
+def read_serial():
+    while not stop_event.is_set():
+        try:
+            line = ser.readline().decode('utf-8', errors='ignore').strip()
+            if not line:
+                continue
+
+            # Reject leads-off sentinel
+            if line.startswith("-1") or line == "!":
+                continue
+
+            token = line.split('|')[0].strip()
+
+            sample = int(token)
+            with lock:
+                buffer.append(sample)
+
+        except ValueError:
+            pass
+        except Exception as e:
+            print(f"Serial error: {e}")
+
+stop_event.clear()
+reader = threading.Thread(target=read_serial, daemon=True)
+reader.start()
+
+# Pan-Tompkins Algorithm
+
+def bandpass(signal, fs):
+    low, high = 8, 20
+    b, a = butter(2, [low / (fs / 2), high / (fs / 2)], btype='band')
+    return filtfilt(b, a, signal)
+
+def derivative(signal):
+    return np.convolve(signal, [1, 2, 0, -2, -1], mode='same') / 8
+
+def squaring(signal):
+    return signal ** 2
+
+def moving_window(signal, fs):
+    window_size = int(0.15 * fs)
+    return np.convolve(signal, np.ones(window_size) / window_size, mode='same')
+
+def detect_peaks(integrated, filtered, fs):
+    coarse_peaks, _ = find_peaks(
+        integrated,
+        distance=int(0.4 * fs),
+        height=np.percentile(integrated, 75),
+        prominence=0.006
+    )
+
+    SPKI = NPKI = SPKF = NPKF = 0.0
+    TH1I = TH2I = TH1F = TH2F = 0.0
+
+    final = []
+    refractory = int(0.2 * fs)
+    last_peak = -np.inf
+    window = int(0.08 * fs)
+
+    RR1 = []
+    RR2 = []
+    RR_AVG1 = 0.0
+    RR_AVG2 = 0.0
+    LOW_LIM  = 0.92
+    HIGH_LIM = 1.16
+    MISSED_LIM = 1.66
+
+    init_window = np.max(integrated[:int(2 * fs)])
+    SPKI = 0.6 * init_window
+    NPKI = 0.1 * init_window
+
+    filt_init_peaks, _ = find_peaks(filtered[:int(2 * fs)], distance=int(0.4 * fs))
+    if len(filt_init_peaks) > 0:
+        SPKF = 0.6 * np.mean(np.abs(filtered[filt_init_peaks]))
+        NPKF = 0.1 * SPKF
+    else:
+        SPKF = 0.6 * np.max(np.abs(filtered[:int(2 * fs)]))
+        NPKF = 0.1 * SPKF
+
+    TH1I = NPKI + 0.25 * (SPKI - NPKI)
+    TH2I = 0.5 * TH1I
+    TH1F = NPKF + 0.25 * (SPKF - NPKF)
+    TH2F = 0.5 * TH1F
+
+    def update_rr(peak_sample):
+        nonlocal RR_AVG1, RR_AVG2
+        if len(final) >= 1:
+            rr = (peak_sample - final[-1]) / fs * 1000
+            RR1.append(rr)
+            if len(RR1) > 8: RR1.pop(0)
+            RR_AVG1 = np.mean(RR1)
+            if RR_AVG2 == 0 or (LOW_LIM * RR_AVG2 <= rr <= HIGH_LIM * RR_AVG2):
+                RR2.append(rr)
+                if len(RR2) > 8: RR2.pop(0)
+                RR_AVG2 = np.mean(RR2)
+
+    searchback_done = set()
+
+    i = 0
+    while i < len(coarse_peaks):
+        p = coarse_peaks[i]
+
+        if (len(final) > 0 and RR_AVG2 > 0 and
+                (p - final[-1]) / fs * 1000 > MISSED_LIM * RR_AVG2 and
+                i not in searchback_done):
+
+            searchback_done.add(i)
+            last_idx = np.searchsorted(coarse_peaks, final[-1])
+            for j in range(last_idx + 1, i):
+                sp = coarse_peaks[j]
+                if sp - final[-1] < refractory:
+                    continue
+                si_val = integrated[sp]
+                s_start = max(0, sp - window)
+                s_end = min(len(filtered), sp + window)
+                sf_peak = s_start + np.argmax(filtered[s_start:s_end])
+                sf_val = filtered[sf_peak]
+                if si_val >= TH2I and sf_val >= TH2F:
+                    final.append(sp)
+                    update_rr(sp)
+                    SPKI = 0.25 * si_val + 0.75 * SPKI
+                    SPKF = 0.25 * sf_val + 0.75 * SPKF
+                    TH1I = NPKI + 0.25 * (SPKI - NPKI)
+                    TH2I = 0.5 * TH1I
+                    TH1F = NPKF + 0.25 * (SPKF - NPKF)
+                    TH2F = 0.5 * TH1F
+                    break
+
+        if p - last_peak < refractory:
+            i += 1
+            continue
+
+        i_val = integrated[p]
+        start = max(0, p - window)
+        end = min(len(filtered), p + window)
+        f_peak = start + np.argmax(filtered[start:end])
+        f_val = filtered[f_peak]
+
+        if i_val >= TH1I and f_val >= TH1F:
+            final.append(p)
+            last_peak = p
+            update_rr(p)
+            SPKI = 0.125 * i_val + 0.875 * SPKI
+            SPKF = 0.125 * f_val + 0.875 * SPKF
+        else:
+            NPKI = 0.125 * i_val + 0.875 * NPKI
+            NPKF = 0.125 * f_val + 0.875 * NPKF
+
+        TH1I = NPKI + 0.25 * (SPKI - NPKI)
+        TH2I = 0.5 * TH1I
+        TH1F = NPKF + 0.25 * (SPKF - NPKF)
+        TH2F = 0.5 * TH1F
+
+        i += 1
+
+    final = np.array(sorted(set(final)))
+    if len(final) > 1:
+        keep = np.concatenate(([True], np.diff(final) >= refractory))
+        final = final[keep]
+
+    return final
+
+
+def heart_rate(peaks, fs):
+    if len(peaks) < 2:
+        return 0
+    rr = np.diff(peaks) / fs
+    rr = rr[(rr > 0.35) & (rr < 1.5)]
+    if len(rr) == 0:
+        return 0
+    med = np.median(rr)
+    rr  = rr[np.abs(rr - med) < 0.3]
+    return 60 / np.mean(rr) if len(rr) > 0 else 0
+
+# Plots Setup
+
+plt.ion()
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6))
+ax1.set_title("Raw vs Filtered ECG")
+ax1.set_xlabel("Time (s)")
+ax1.set_ylabel("Amplitude (A.U.)")
+ax2.set_title("Processed Signal (Pan-Tompkins)")
+ax2.set_xlabel("Time (s)")
+ax2.set_ylabel("Amplitude (A.U.)")
+ax1.legend()
+ax2.legend()
+fig.canvas.draw()
+
+time.sleep(10)
+hr_history = deque(maxlen=5)
+start_time = time.time()
+
+try:
+    while True:
+        with lock:
+            if len(buffer) < 2500:
+                plt.pause(0.1)
+                continue
+            chunk = list(buffer)[-2500:]
+
+        signal = np.array(chunk, dtype=np.float64)
+        signal = (signal - np.mean(signal)) / (np.std(signal) + 1e-6)
+        signal = np.clip(signal, -4, 4)
+
+        elapsed = time.time() - start_time
+        x = np.arange(len(signal)) / fs + (elapsed - len(signal) / fs)
+
+        ax1.clear()
+        ax2.clear()
+
+        filtered   = bandpass(signal, fs)
+        diff       = derivative(filtered)
+        squared    = squaring(diff)
+        integrated = moving_window(squared, fs)
+        # Temporary raw diagnostic — no adaptive threshold, just find_peaks
+        raw_peaks, _ = find_peaks(integrated, distance=int(0.3 * fs), height=np.percentile(integrated, 40))
+        peaks      = detect_peaks(integrated, filtered, fs)
+        hr         = heart_rate(peaks, fs)
+
+        ax1.plot(x, signal,  label="Raw ECG",      alpha=0.6)
+        ax1.plot(x, filtered, label="Filtered ECG", linewidth=2)
+        # In your ax1 plot block, add:
+        ax1.scatter(x[peaks], filtered[peaks], color='green', zorder=6, s=40, label="Detected peaks (filtered)")
+        ax1.set_ylim(-4, 4)
+        ax1.set_xlim(x[0], x[-1])
+        ax1.legend()
+
+        ax2.plot(x, integrated, color='orange', label="Integrated Signal")
+        if len(peaks) > 0:
+            ax2.scatter(x[peaks], integrated[peaks], color='red', zorder=5)
+        ax2.set_xlim(x[0], x[-1])
+        ax2.legend()
+
+        hr_history.append(hr)
+        hr_smooth = np.mean(hr_history)
+        fig.suptitle(f"Live ECG | HR: {hr_smooth:.1f} BPM", fontsize=13)
+
+        plt.pause(0.1)
+
+except KeyboardInterrupt:
+    print("Stopping recording...")
+    stop_event.set()
+    plt.close('all')
+    ser.close()
+    savemat('ecg_recording.mat', {
+        'signal':     np.array(signal,     dtype=np.float64),
+        'filtered':   np.array(filtered,   dtype=np.float64),
+        'integrated': np.array(integrated, dtype=np.float64),
+        'peaks':      np.array(peaks,      dtype=np.float64),
+        'hr':         np.float64(hr_smooth),
+        'fs':         np.float64(fs),
+        'timestamp':  np.float64(time.time()),
+    })
+    print("Data saved to ecg_recording.mat")

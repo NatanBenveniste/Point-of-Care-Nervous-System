@@ -1,0 +1,171 @@
+#include <Adafruit_LPS35HW.h>
+#include <math.h>
+
+// -------------------------------
+// LPS33HW / LPS35HW SPI pins
+// -------------------------------
+#define LPS_CS   10
+#define LPS_SCK  13
+#define LPS_MISO 12
+#define LPS_MOSI 11
+
+Adafruit_LPS35HW lps35hw;
+
+// -------------------------------
+// Motor / valve pins
+// -------------------------------
+const int IN1   = 3;
+const int IN2   = 6;
+const int EEP   = 2;
+const int VALVE = 4;
+
+// -------------------------------
+// Units / pressure
+// -------------------------------
+const float HPA_TO_MMHG = 0.750062f;
+float ambient_hPa = 0.0f;
+
+// -------------------------------
+// Sampling / test settings
+// -------------------------------
+const unsigned long SAMPLE_INTERVAL_MS = 20;   // 50 Hz
+const float TARGET_INFLATE_MMHG = 170.0f;
+const float STOP_DEFLATE_MMHG   = 40.0f;
+
+const unsigned long MAX_INFLATE_TIME_MS = 35000;   // 35 sec
+const unsigned long HOLD_AT_TARGET_MS   = 4000;    // 4 sec
+
+// Pulsed bleed settings for m()
+const unsigned long BLEED_PERIOD_MS = 250;
+const unsigned long BLEED_OPEN_MS   = 12;
+
+void setup() {
+  Serial.begin(115200);
+  delay(200);
+
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(EEP, OUTPUT);
+  pinMode(VALVE, OUTPUT);
+
+  stopPump();
+  valveClose();
+
+  if (!lps35hw.begin_SPI(LPS_CS, LPS_SCK, LPS_MISO, LPS_MOSI)) {
+    Serial.println(F("Sensor not found"));
+    while (1) {
+      delay(10);
+    }
+  }
+
+  delay(100);
+  ambient_hPa = lps35hw.readPressure();
+
+  Serial.println("READY");
+  Serial.setTimeout(10);
+}
+
+void loop() {
+  serialControl();
+
+  float p = gaugePressure_mmHg(readPressure_hPa());
+
+  Serial.print("DATA,");
+  Serial.print(millis());
+  Serial.print(",");
+  Serial.println(p, 4);
+
+  delay(20); // ~50 Hz
+}
+
+void serialControl() {
+  if (!Serial.available()) return;
+
+  String cmd = Serial.readStringUntil('\n');
+  cmd.trim();
+
+  if (cmd == "zero") {
+    zeroAmbient();
+    Serial.println("ACK,zero");
+  }
+  
+  else if (cmd == "pump") {
+    pumpForward();
+    Serial.println("ACK,pump");
+  }
+
+  else if (cmd == "stop") {
+    stopPump();
+    valveClose();
+    Serial.println("ACK,stop");
+  }
+
+  else if (cmd == "valve") {
+    valveOpen();
+    Serial.println("ACK,valve");
+  }
+
+  else if (cmd == "close") {
+    valveClose();
+    Serial.println("ACK,close");
+  }
+
+  else if (cmd == "pulse") {
+    valvePulse(100);
+    Serial.println("ACK,pulse");
+  }
+}
+
+// -------------------------------
+// Pump / valve functions
+// -------------------------------
+void pumpForward() {
+  digitalWrite(EEP, HIGH);
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+}
+
+void stopPump() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  digitalWrite(EEP, LOW);
+}
+
+void valveOpen() {
+  digitalWrite(VALVE, HIGH);
+}
+
+void valveClose() {
+  digitalWrite(VALVE, LOW);
+}
+
+void valvePulse(int ms) {
+  for (int i = 0; i < 3; i++) {
+    valveOpen();
+    delay(ms);
+    valveClose();
+    delay(ms);
+  }
+}
+
+// -------------------------------
+// Pressure helpers
+// -------------------------------
+float readPressure_hPa() {
+  return lps35hw.readPressure();
+}
+
+float gaugePressure_mmHg(float abs_hPa) {
+  return (abs_hPa - ambient_hPa) * HPA_TO_MMHG;
+}
+
+// -------------------------------
+void zeroAmbient() {
+  stopPump();
+  valveOpen();
+  delay(3000);
+  valveClose();
+  delay(300);
+
+  ambient_hPa = readPressure_hPa();
+}
