@@ -12,6 +12,6 @@ void setup() {
 }
 
 void loop() {
-  ecg.readECG();
+  Serial.println(ecg.readECG());
   delay(4);
 }

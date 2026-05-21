@@ -10,5 +10,7 @@ public:
     HeartRateMonitor();
 
     void init();
-    void readECG();
+
+    bool leadsOff();
+    int readECG();    
 };
