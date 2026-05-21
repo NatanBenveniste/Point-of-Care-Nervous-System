@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <Wire.h>
 #include <SPI.h>
 #include <Adafruit_LPS35HW.h>
@@ -8,7 +9,16 @@
 Adafruit_LPS35HW upstreamSensor = Adafruit_LPS35HW();
 Adafruit_LPS35HW downstreamSensor = Adafruit_LPS35HW();
 
+//const float MANUAL_ZERO_OFFSET_PA = 0;  // change this based on no-flow test
+
 float zeroOffset_Pa = 0.0;
+const float K = 12.482;   // deltaP = K * Q  12.482
+
+
+bool collecting = false;
+
+float volume_L = 0.0;
+unsigned long lastTime_ms = 0;
 
 float readUpstreamPa() {
   return upstreamSensor.readPressure() * 100.0;
@@ -18,12 +28,27 @@ float readDownstreamPa() {
   return downstreamSensor.readPressure() * 100.0;
 }
 
+void calibrateZeroOffset() {
+  float sum = 0.0;
+  int samples = 200;
+
+  for (int i = 0; i < samples; i++) {
+    float upstream_Pa = readUpstreamPa();
+    float downstream_Pa = readDownstreamPa();
+
+    sum += abs(upstream_Pa - downstream_Pa);
+    delay(20);
+  }
+
+  zeroOffset_Pa = sum / samples;
+
+  Serial.print("ZERO_OFFSET_PA=");
+  Serial.println(zeroOffset_Pa, 2);
+}
+
 void setup() {
   Serial.begin(115200);
-
-  delay(3000);
-
-  Serial.println("serial");
+  delay(2000);
 
   if (!upstreamSensor.begin_SPI(CS_UPSTREAM)) {
     Serial.println("UPSTREAM_SENSOR_INIT_FAILED");
@@ -35,42 +60,66 @@ void setup() {
     while (1);
   }
 
-
-
   delay(1000);
 
-  float sum = 0.0;
-  int samples = 100;
 
-  for (int i = 0; i < samples; i++) {
-    float upstream_Pa = readUpstreamPa();
-    float downstream_Pa = readDownstreamPa();
-
-    sum += upstream_Pa - downstream_Pa;
-    delay(20);
-  }
-
-  zeroOffset_Pa = sum / samples;
-
-  Serial.println("time_ms,upstream_Pa,downstream_Pa,deltaP_raw_Pa,deltaP_corrected_Pa");
+  Serial.println("Press ENTER to start collection.");
+  Serial.println("Press ENTER again to stop collection.");
+  Serial.println("time_ms,deltaP_corrected_Pa,Q_L_per_s,dt_s,volume_L");
 }
 
 void loop() {
+  if (Serial.available() > 0) {
+    Serial.readStringUntil('\n');
+
+    collecting = !collecting;
+
+    if (collecting) {
+    Serial.println("CALIBRATING_ZERO_OFFSET");
+    calibrateZeroOffset();
+
+    volume_L = 0.0;
+    lastTime_ms = millis();
+    Serial.println("START_COLLECTION");
+
+    } else {
+      Serial.print("STOP_COLLECTION, final_volume_L=");
+      Serial.println(volume_L, 4);
+    }
+  }
+
+  if (!collecting) {
+    return;
+  }
+
+  unsigned long now_ms = millis();
+  float dt_s = (now_ms - lastTime_ms) / 1000.0;
+  lastTime_ms = now_ms;
+
   float upstream_Pa = readUpstreamPa();
   float downstream_Pa = readDownstreamPa();
 
-  float deltaP_raw_Pa = upstream_Pa - downstream_Pa;
+  float deltaP_raw_Pa = abs(upstream_Pa - downstream_Pa);
   float deltaP_corrected_Pa = deltaP_raw_Pa - zeroOffset_Pa;
 
-  Serial.print(millis());
+  if (deltaP_corrected_Pa < 7) {
+
+    deltaP_corrected_Pa = 0;
+  }
+
+  
+  float Q_L_per_s = deltaP_corrected_Pa / K;
+  volume_L += Q_L_per_s * dt_s;
+
+  Serial.print(now_ms);
   Serial.print(",");
-  Serial.print(upstream_Pa, 2);
+  Serial.print(deltaP_corrected_Pa, 2);
   Serial.print(",");
-  Serial.print(downstream_Pa, 2);
+  Serial.print(Q_L_per_s, 4);
   Serial.print(",");
-  Serial.print(deltaP_raw_Pa, 2);
+  Serial.print(dt_s, 4);
   Serial.print(",");
-  Serial.println(deltaP_corrected_Pa, 2);
+  Serial.println(volume_L, 4);
 
   delay(50);
 }
