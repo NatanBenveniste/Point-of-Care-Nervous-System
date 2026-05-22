@@ -2,9 +2,7 @@
 #include <math.h>
 #include <vector>
 #include <chrono>
-extern "C" {
-#include <liquid.h>
-}
+#include <arm_math.h>
 
 
 
@@ -14,9 +12,14 @@ extern "C" {
 #define ecgPin 28
 
 struct ECG {
-    std::vector<double> t;
-    std::vector<int> val;
+    std::vector<float> t;
+    std::vector<float> val;
 };
+
+typedef struct {
+    float b0, b1, b2;
+    float a1, a2;
+} biquad_t;
 
 class HeartRateMonitor {
 public: 
@@ -25,22 +28,24 @@ public:
     // basic
     void init();    
     bool leadsOff();
-    int readECG();
+    float readECG();
 
     // collecting
     bool collecting;
     std::chrono::steady_clock::time_point startTime;
 
     ECG rawECG;
+    ECG ptECG;
 
     void startCollecting();
     void updateRaw();
-    const std::vector<int>& getRawSignal() const; // needed ?
-
 
     // processing
-    void panTompkins(const std::vector<double>& t, const std::vector<int>& val);
+    ECG panTompkins(ECG ecg);
+    
+    std::vector<int> detectPeaks(std::vector<float>& signal, float fs);
 
 private:    
+    static inline void designBP(float fs, float f1, float f2, float coeffs[5]);
 
 };
