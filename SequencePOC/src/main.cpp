@@ -3,14 +3,6 @@
 
 HeartRateMonitor hrm;
 
-void sendFloatVector(const float* data, uint32_t n) {
-    // send length first
-    Serial.write((uint8_t*)&n, sizeof(n));
-
-    // send raw floats
-    Serial.write((uint8_t*)data, n * sizeof(float));
-}
-
 void setup() {
   Serial.begin(115200);
   delay(200);
@@ -21,33 +13,39 @@ void setup() {
 
 void loop() {
   delay(3000);
-  
   unsigned long start = millis();
 
   Serial.println("starting collect");
-  while (millis() - start < 20000){
-    hrm.startCollecting();
-    hrm.updateRaw();
-    Serial.println("collecting. . .");
-    delay(4);
-  }
-  hrm.collecting = false;
+  hrm.timedCollect(30);
   Serial.println("finished collect");
 
   hrm.ptECG = hrm.panTompkins(hrm.rawECG);
-  
+  Serial.println("pan tompkins done");
+  hrm.bpECG = hrm.bandPass(hrm.rawECG);
+  Serial.println("bandpass done");
+  hrm.peakIdx = hrm.detectPeaks(hrm.ptECG, hrm.bpECG);
+  Serial.println("peak detection done");
+  auto [hr, rmssd] = hrm.hrStats(hrm.ptECG, hrm.peakIdx);
+  Serial.println("heart rate stats done");
+  hrm.hr = hr;
+  hrm.rmssd = rmssd;
+
   int n = hrm.ptECG.val.size();
   Serial.println("sending data");
-  sendFloatVector(hrm.ptECG.t.data(), n);
-  sendFloatVector(hrm.rawECG.val.data(), n);
-  sendFloatVector(hrm.ptECG.val.data(), n);
+  sendECGPacket(
+    hrm.ptECG.t.data(),  hrm.ptECG.t.size(),
+    hrm.rawECG.val.data(), hrm.rawECG.val.size(),
+    hrm.ptECG.val.data(), hrm.ptECG.val.size(),
+    hrm.peakIdx.data(), hrm.peakIdx.size(),
+    hrm.hr,
+    hrm.rmssd
+);
   Serial.println("stop data");
+  
   while(1){
     Serial.println("done");
     delay(1000);
   }
-
-
 }
 
 
