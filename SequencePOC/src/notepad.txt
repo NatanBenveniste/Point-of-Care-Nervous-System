@@ -161,3 +161,24 @@ Serial.println(analogRead(28));
 //Wait for a bit to keep serial data from saturating
 delay(4);
 }
+
+
+
+  pinMode(chargePin, INPUT);
+  pinMode(buttonPin, INPUT_PULLUP);
+
+
+  int button = digitalRead(buttonPin);
+  if (button == LOW) {
+    Serial.println("next");
+  }
+
+
+  if (showCharge) {
+    long adcraw = analogRead(chargePin);
+    float batVoltage = (adcraw/1024.0) * 3.3;
+    Serial.println(adcraw);
+    Serial.println(batVoltage);
+  }
+
+  delay(50);

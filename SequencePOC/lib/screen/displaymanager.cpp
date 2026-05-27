@@ -1,7 +1,7 @@
 #include "displaymanager.h"
 
 DisplayManager::DisplayManager()
-    : display(EPD_DC, EPD_RESET, EPD_CS, SRAM_CS, EPD_BUSY)
+    : display(EPD_DC, EPD_RESET, EPD_CS, SRAM_CS, EPD_BUSY, &SPI1)
 {
 }
 
@@ -9,11 +9,11 @@ void DisplayManager::init() {
     Serial.println("Starting");
 
     pinMode(EPD_ENA, OUTPUT);
-    pinMode(EPD_BUSY, INPUT);
+    pinMode(EPD_BUSY, INPUT_PULLUP);
     digitalWrite(EPD_ENA, HIGH);
     delay(100);
 
-    Serial.print("Busy pin state: ");
+    Serial.print("Busy pin state: "); 
     Serial.println(digitalRead(EPD_BUSY));
 
     display.begin(THINKINK_TRICOLOR);
@@ -73,21 +73,6 @@ void DisplayManager::runDemo() {
     display.display();
 
     delay(15000);
-
-    
-    // Serial.println("Starting");
-
-    // display.clearBuffer();
-
-    // Serial.println("Buffer cleared, making black");
-
-    // display.fillScreen(EPD_BLACK);
-
-    // display.display();
-
-    // Serial.println("Done");
-
-    // while (1);
 }
 
 void DisplayManager::testdrawtext(const char *text, uint16_t color) {
@@ -95,4 +80,38 @@ void DisplayManager::testdrawtext(const char *text, uint16_t color) {
     display.setTextColor(color);
     display.setTextWrap(true);
     display.print(text);  
+}
+
+void DisplayManager::fillScreenTest(const char c) {
+    Serial.println("Starting");
+    display.clearBuffer();
+
+    uint16_t color;
+
+switch (c) {
+        case 'b':
+            color = EPD_BLACK;
+            Serial.println("Filling BLACK");
+            break;
+
+        case 'w':
+            color = EPD_WHITE;
+            Serial.println("Filling WHITE");
+            break;
+
+        case 'r':
+            color = EPD_RED;
+            Serial.println("Filling RED");
+            break;
+
+        default:
+            Serial.println("Unknown color, defaulting to BLACK");
+            color = EPD_BLACK;
+            break;
+    }
+
+    display.fillScreen(color);
+    display.display();
+
+    Serial.println("Done");
 }
