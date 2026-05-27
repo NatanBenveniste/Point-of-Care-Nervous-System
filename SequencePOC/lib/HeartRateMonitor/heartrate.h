@@ -60,7 +60,8 @@ public:
     std::vector<int> detectPeaks(const ECG& ptECG, const ECG& bpECG);
     std::pair<float, float> hrStats(const ECG& ptECG, const std::vector<int>& peaks);
 
-
+    void ptProcess();
+    void clearVecs();
 
 
 private:    

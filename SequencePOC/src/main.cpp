@@ -16,7 +16,7 @@ void loop() {
   unsigned long start = millis();
 
   Serial.println("starting collect");
-  hrm.timedCollect(30);
+  hrm.timedCollect(10);
   Serial.println("finished collect");
 
   hrm.ptECG = hrm.panTompkins(hrm.rawECG);
@@ -24,11 +24,14 @@ void loop() {
   hrm.bpECG = hrm.bandPass(hrm.rawECG);
   Serial.println("bandpass done");
   hrm.peakIdx = hrm.detectPeaks(hrm.ptECG, hrm.bpECG);
-  Serial.println("peak detection done");
+  Serial.println("peak detection done, peak number: ");
+  Serial.println(hrm.peakIdx.size());
   auto [hr, rmssd] = hrm.hrStats(hrm.ptECG, hrm.peakIdx);
-  Serial.println("heart rate stats done");
+  Serial.println("heart rate stats done: ");
   hrm.hr = hr;
   hrm.rmssd = rmssd;
+  Serial.println(hr);
+  Serial.println(rmssd);
 
   int n = hrm.ptECG.val.size();
   Serial.println("sending data");
@@ -41,6 +44,7 @@ void loop() {
     hrm.rmssd
 );
   Serial.println("stop data");
+
   
   while(1){
     Serial.println("done");

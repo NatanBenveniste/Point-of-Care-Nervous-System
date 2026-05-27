@@ -365,7 +365,7 @@ std::vector<int> HeartRateMonitor::detectPeaks(const ECG& ptECG, const ECG& bpEC
 
     float height = percentile(ptSignal, 80.0f);
 
-    std::vector<int> coarsePeaks = findPeaksAlt(
+    std::vector<int> coarsePeaks = findPeaks(
         ptSignal,
         minDistance,
         height,
@@ -498,7 +498,7 @@ std::vector<int> HeartRateMonitor::detectPeaks(const ECG& ptECG, const ECG& bpEC
         int end = std::min(n, p + window);
 
         int fPeak = start;
-        float fVal = bpSignal[start];
+        float fVal = std::abs(bpSignal[start]);
 
         for (int k = start; k < end; ++k) {
             if (bpSignal[k] > fVal) {
@@ -536,13 +536,13 @@ std::vector<int> HeartRateMonitor::detectPeaks(const ECG& ptECG, const ECG& bpEC
         }
     }
 
-    if (!cleaned.empty())
-        cleaned.erase(cleaned.begin());
+    // if (!cleaned.empty())
+    //     cleaned.erase(cleaned.begin());
 
-    if (!cleaned.empty())
-        cleaned.pop_back();
+    // if (!cleaned.empty())
+    //     cleaned.pop_back();
     return cleaned;
-    }
+}
 
 
 // returns both hr(bpm) and rmssd(ms), input: pan tompkins ECG, peaks vector
