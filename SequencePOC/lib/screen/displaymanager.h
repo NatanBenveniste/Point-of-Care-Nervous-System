@@ -12,7 +12,7 @@
 #define EPD_DC 15
 #define EPD_CS 13
 #define EPD_BUSY 7 // usually 7
-#define SRAM_CS 14
+#define SRAM_CS 14 // usually 14
 #define EPD_RESET 8
 #define EPD_ENA 6
 

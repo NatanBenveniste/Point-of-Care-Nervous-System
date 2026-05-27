@@ -8,9 +8,12 @@ DisplayManager::DisplayManager()
 void DisplayManager::init() {
     Serial.println("Starting");
 
+    // enable display
     pinMode(EPD_ENA, OUTPUT);
-    pinMode(EPD_BUSY, INPUT_PULLUP);
     digitalWrite(EPD_ENA, HIGH);
+
+    
+
     delay(100);
 
     Serial.print("Busy pin state: "); 

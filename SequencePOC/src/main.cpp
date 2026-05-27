@@ -17,16 +17,11 @@ void setup() {
   Serial.begin(115200);
   delay(500);
   Serial.println("serial");
-  pinMode(EPD_BUSY, INPUT_PULLUP);
 
   SPI1.setSCK(10);
   SPI1.setTX(11);
   SPI1.setRX(12);
   SPI1.begin();
-  Serial.println("spi check");
-  Serial.println(SPI1.setSCK(10));
-  Serial.println(SPI1.setTX(11));
-  Serial.println(SPI1.setRX(12));
 
   Serial.print("BUSY before init: ");
   Serial.println(digitalRead(EPD_BUSY));
