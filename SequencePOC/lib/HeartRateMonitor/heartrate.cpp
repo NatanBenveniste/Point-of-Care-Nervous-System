@@ -601,3 +601,24 @@ std::pair<float, float> HeartRateMonitor::hrStats(const ECG& ptECG, const std::v
 
     return {hr, rmssd};
 }
+
+
+// returns all results to class variables e.g. hrm.rmssd
+void HeartRateMonitor::ptProcess() {
+    HeartRateMonitor::ptECG = HeartRateMonitor::panTompkins(HeartRateMonitor::rawECG);
+    HeartRateMonitor::bpECG = HeartRateMonitor::bandPass(HeartRateMonitor::rawECG);
+    HeartRateMonitor::peakIdx = HeartRateMonitor::detectPeaks(HeartRateMonitor::ptECG, HeartRateMonitor::bpECG);
+    auto [hr, rmssd] = HeartRateMonitor::hrStats(HeartRateMonitor::ptECG, HeartRateMonitor::peakIdx);
+    HeartRateMonitor::hr = hr;
+    HeartRateMonitor:: rmssd = rmssd;
+
+}
+
+void HeartRateMonitor::clearVecs() { 
+    std::vector<float>().swap(HeartRateMonitor::rawECG.t);
+    std::vector<float>().swap(HeartRateMonitor::rawECG.val);
+    std::vector<float>().swap(HeartRateMonitor::bpECG.t);
+    std::vector<float>().swap(HeartRateMonitor::bpECG.val);
+    std::vector<float>().swap(HeartRateMonitor::ptECG.t);
+    std::vector<float>().swap(HeartRateMonitor::ptECG.val);
+}
