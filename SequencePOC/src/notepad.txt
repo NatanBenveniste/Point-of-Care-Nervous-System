@@ -182,3 +182,41 @@ delay(4);
   }
 
   delay(50);
+
+
+
+
+// screen extension testing -----------------------------------------------
+
+  
+void setup() {
+  Serial.begin(115200);
+  delay(500);
+  Serial.println("serial");
+
+  SPI1.setSCK(10);
+  SPI1.setTX(11);
+  SPI1.setRX(12);
+  SPI1.begin();
+
+  Serial.print("BUSY before init: ");
+  Serial.println(digitalRead(EPD_BUSY));
+
+  screen.init();
+
+  Serial.print("BUSY after init: ");
+  Serial.println(digitalRead(EPD_BUSY));
+
+  // screen.fillScreenTest('b');
+  screen.runDemo();
+
+  Serial.print("BUSY after draw: ");
+  Serial.println(digitalRead(EPD_BUSY));
+}
+
+void loop() {  
+  Serial.print("BUSY idle: ");
+  Serial.println(digitalRead(EPD_BUSY));
+  delay(500);
+
+}

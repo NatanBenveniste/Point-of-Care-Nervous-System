@@ -6,21 +6,16 @@ DisplayManager::DisplayManager()
 }
 
 void DisplayManager::init() {
-    Serial.println("Starting");
-
     // enable display
     pinMode(EPD_ENA, OUTPUT);
     digitalWrite(EPD_ENA, HIGH);
 
-    
-
     delay(100);
 
-    Serial.print("Busy pin state: "); 
-    Serial.println(digitalRead(EPD_BUSY));
+    // Serial.print("Busy pin state: "); 
+    // Serial.println(digitalRead(EPD_BUSY));
 
     display.begin(THINKINK_TRICOLOR);
-
     Serial.println("Display begin done");
 }
 
@@ -117,4 +112,13 @@ switch (c) {
     display.display();
 
     Serial.println("Done");
+}
+
+void DisplayManager::writeBig(const int x, const int y, const char *text) {
+    display.clearBuffer();  
+    display.setCursor(x, y);
+    display.setTextSize(2);
+    display.println(text);
+
+    display.display();
 }

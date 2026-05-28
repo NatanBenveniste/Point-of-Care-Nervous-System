@@ -4,7 +4,7 @@
 #define IN1 3
 #define IN2 2
 #define EEP 4
-#define VALVE 10
+#define VALVE 1
 
 
 class MotorControl {

@@ -1,9 +1,10 @@
-#ifndef DISPLAY_MANAGER_H
-#define DISPLAY_MANAGER_H
+#pragma once
 
 #include <Arduino.h>
 #include "Adafruit_ThinkInk.h"
 #include <string>
+#include <Fonts/FreeSans9pt7b.h>
+#include <Fonts/FreeSerif9pt7b.h>
 
 // spi pins
 #define EPD_SPI SPI1
@@ -19,15 +20,14 @@
 class DisplayManager {
 public:
     DisplayManager();
+    ThinkInk_370_Tricolor_BABMFGNR display;
 
     void init();
     void runDemo();
     void fillScreenTest(const char c);
+    void writeBig(const int x, const int y, const char *text);
+
 
 private:
-    ThinkInk_370_Tricolor_BABMFGNR display;
-
     void testdrawtext(const char *text, uint16_t color);
 };
-
-#endif
