@@ -21,12 +21,14 @@ void CuffControl::setupHardware() {
 
   Serial.println("Hardware setup");
 
-  if (!sensor.begin_SPI(LPS_CS, LPS_SCK, LPS_MISO, LPS_MOSI)) {
-    Serial.println("ERROR: Sensor not found");
-    while (1) {
-      delay(10);
-    }
-  }
+  sensor.begin_SPI(LPS_CS, &SPI);
+  
+  // if (!sensor.begin_SPI(LPS_CS, LPS_SCK, LPS_MISO, LPS_MOSI)) {
+  //   Serial.println("ERROR: Sensor not found");
+  //   while (1) {
+  //     delay(10);
+  //   }
+  // }
 
   delay(500);
 
@@ -111,13 +113,17 @@ void CuffControl::serialControl() {
 
   else if (cmd == "bp") {
     runBPMeasurement();
+    Serial.println("ACK,bp");
+    
   }
 
   else if (cmd == "hold5") {
+    Serial.println("ACK,hold5");
     runFiveMinuteHold();
   }
 
   else if (cmd == "deflate") {
+    Serial.println("ACK,deflate");
     fullDeflate();
   }
 

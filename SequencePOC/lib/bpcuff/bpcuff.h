@@ -35,7 +35,6 @@ public:
 
 private:
     Adafruit_LPS35HW sensor;
-
     float ambientPressure;
 
     float readPressure();
