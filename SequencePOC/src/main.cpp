@@ -12,5 +12,4 @@ void setup() {
 
 void loop() {
   control.serialControl();
-  delay(100);
 }
