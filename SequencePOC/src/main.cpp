@@ -8,8 +8,7 @@ void setup() {
   delay(1000);
   Serial.println("serial");
 
-  control.setupHardware();  
-
+  control.setupHardware();
 }
 
 void loop() {

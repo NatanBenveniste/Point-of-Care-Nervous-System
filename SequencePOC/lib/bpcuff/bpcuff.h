@@ -40,16 +40,16 @@ private:
     float readPressure();
     float getPressureMmHg();
 
-    static const int MAX_POINTS = 300;
+    static const int MAX_POINTS = 1200;
 
     float pressureData[MAX_POINTS];
     float oscData[MAX_POINTS];
     int dataCount;
 
     void resetBPData();
-    void savePoint(float pressure, float osc);
+    void savePoint(float pressure);
     void calculateBP();
 
-    const float SBP_RATIO = 0.20;
-    const float DBP_RATIO = 0.45;
+    const float SBP_RATIO = 0.55;
+    const float DBP_RATIO = 0.70;
 };
