@@ -23,7 +23,7 @@ const float DP_START_THRESHOLD_PA = 5.0;
 const int BREATH_START_COUNT_THRESHOLD = 3;
 
 const float DP_STOP_THRESHOLD_PA = 2.0;
-const int BREATH_STOP_COUNT_THRESHOLD = 4;
+const int BREATH_STOP_COUNT_THRESHOLD = 3;
 
 // Filtering
 const float EMA_ALPHA = 0.25;
@@ -153,7 +153,7 @@ float calculateFlow_Lps(float deltaP_Pa) {
 
   float flow =
     C0 +
-    C1 * x;
+    C1 * sqrt(x);
   
   if (flow < 0.0) {
     flow = 0.0;
@@ -371,17 +371,16 @@ void loop() {
   if (breathActive) {
     Serial.print(time_s, 4);
     Serial.print(",");
-    Serial.print(p1_abs_Pa, 2);
-    Serial.print(",");
-    Serial.print(rawDeltaP_Pa, 2);
-    Serial.print(",");
+    // Serial.print(p1_abs_Pa, 2);
+    // Serial.print(",");
+    // Serial.print(rawDeltaP_Pa, 2);
+    // Serial.print(",");
     Serial.print(smoothDeltaP_Pa, 2);
     Serial.print(",");
     Serial.print(flow_Lps, 4);
     Serial.print(",");
     Serial.print(volume_L, 4);
-    Serial.print(",");
-    Serial.println(breathActive ? 1 : 0);
+    Serial.println("");
   }
 
   delay(SAMPLE_DELAY_MS);
