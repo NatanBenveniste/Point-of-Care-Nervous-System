@@ -39,8 +39,7 @@ void loop() {
   
   while(1){
     Serial.println("done");
-    delay(1000);
+    delay(5000);
   }
+
 }
-
-

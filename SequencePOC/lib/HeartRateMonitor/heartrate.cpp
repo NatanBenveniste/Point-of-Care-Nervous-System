@@ -59,7 +59,7 @@ void HeartRateMonitor::timedCollect(int t) {
         }
         HeartRateMonitor::startCollecting();
         HeartRateMonitor::updateRaw();
-        Serial.println("collecting. . ."); // comment out for clean version
+        Serial.println("collecting. . ."); // comment out for clean serial monitor
         delay(4);
     }
     HeartRateMonitor::collecting = false;
@@ -539,11 +539,11 @@ std::vector<int> HeartRateMonitor::detectPeaks(const ECG& ptECG, const ECG& bpEC
         }
     }
 
-    // if (!cleaned.empty())
-    //     cleaned.erase(cleaned.begin());
+    if (!cleaned.empty())
+        cleaned.erase(cleaned.begin());
 
-    // if (!cleaned.empty())
-    //     cleaned.pop_back();
+    if (!cleaned.empty())
+        cleaned.pop_back();
     return cleaned;
 }
 
@@ -554,48 +554,43 @@ std::pair<float, float> HeartRateMonitor::hrStats(const ECG& ptECG, const std::v
     if (ptECG.t.size() < 2 || peaks.size() < 4 || fs <= 0.0f)
         return {0.0f, 0.0f};
 
-    std::vector<float> rr_sec;
     std::vector<float> rr_ms;
 
-    for (size_t i = 1; i < peaks.size(); ++i) //  make vectors of rr intervals
+    for (size_t i = 1; i < peaks.size(); ++i) //  make vectors of rr intervals, initial absolute thresholding
     {
-        float interval_sec = (peaks[i] - peaks[i - 1]) / fs;
-        float interval_ms = interval_sec * 1000.0f;
+        float interval_ms = ((peaks[i] - peaks[i - 1]) / fs)* 1000.0f;
 
-        if (interval_sec > 0.35f && interval_sec < 1.5f)
-            rr_sec.push_back(interval_sec);
-
-        if (interval_ms > 333.0f && interval_ms < 1500.0f)
+        if (interval_ms > 300.0f && interval_ms < 1500.0f)
             rr_ms.push_back(interval_ms);
     }
     
     float hr = 0.0f; // preallocate float outputs
     float rmssd = 0.0f;
 
-    if (!rr_sec.empty()) { // calculate hr
-        std::vector<float> sorted_rr = rr_sec;
+    std::vector<float> filtered_rr_ms;
+    if (!rr_ms.empty()) { // median thresholding (rr interval removal)
+        std::vector<float> sorted_rr = rr_ms;
         std::sort(sorted_rr.begin(), sorted_rr.end());
 
         size_t n = sorted_rr.size();
         float med = (n % 2 == 0)
-            ? (sorted_rr[n / 2 - 1] + sorted_rr[n / 2]) * 0.5f
-            : sorted_rr[n / 2];
+            ? (sorted_rr[n / 2 - 1] + sorted_rr[n / 2]) * 0.5f  // even num rr -> median = avg of two middle
+            : sorted_rr[n / 2];  // odd num rr -> median = middle
 
-        std::vector<float> filtered_rr;
-        for (float r : rr_sec) {
-            if (std::fabs(r - med) < 0.3f)
-                filtered_rr.push_back(r);
+        for (float r : rr_ms) {
+            if (std::fabs(r - med) / med < 0.2f)
+                filtered_rr_ms.push_back(r);
             }
 
-        if (!filtered_rr.empty())
-            hr = 60.0f / meanVec(filtered_rr);
     }
 
-    if (rr_ms.size() >= 3) {  // calculate hrv
+    if (filtered_rr_ms.size() >= 3) {  // calculate hr + hrv
         std::vector<float> squared_diffs;
 
-        for (size_t i = 1; i < rr_ms.size(); ++i) {
-            float d = rr_ms[i] - rr_ms[i - 1];
+        hr = 60000.0f / meanVec(filtered_rr_ms);
+
+        for (size_t i = 1; i < filtered_rr_ms.size(); ++i) {
+            float d = filtered_rr_ms[i] - filtered_rr_ms[i - 1];
             squared_diffs.push_back(d * d);
         }
 
