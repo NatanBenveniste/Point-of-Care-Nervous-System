@@ -51,19 +51,41 @@ void HeartRateMonitor::updateRaw() {
 
 // collect for a designated period, input: seconds
 void HeartRateMonitor::timedCollect(int t) {
+    clearVecs();
+    leadsOffCount = 0;
+    intRemovedCount = 0;
+
     int tMil = t * 1000;
     unsigned long start = millis();
-    while (millis() - start < tMil){
+
+    startCollecting();
+
+    while (millis() - start < tMil) {
         if (leadsOff()) {
             leadsOffCount++;
         }
-        HeartRateMonitor::startCollecting();
-        HeartRateMonitor::updateRaw();
-        Serial.println("collecting. . ."); // comment out for clean serial monitor
-        delay(4);
+
+        updateRaw();
+
+        // No Serial.println while sampling
+        delayMicroseconds(4000);   // ~250 Hz
     }
-    HeartRateMonitor::collecting = false;
+
+    collecting = false;
 }
+//     int tMil = t * 1000;
+//     unsigned long start = millis();
+//     while (millis() - start < tMil){
+//         if (leadsOff()) {
+//             leadsOffCount++;
+//         }
+//         HeartRateMonitor::startCollecting();
+//         HeartRateMonitor::updateRaw();
+//         Serial.println("collecting. . ."); // comment out for clean serial monitor
+//         delay(4);
+//     }
+//     HeartRateMonitor::collecting = false;
+// }
 
 
 // -----------------------------------------------------------------------------------------------------
@@ -362,12 +384,12 @@ std::vector<int> HeartRateMonitor::detectPeaks(const ECG& ptECG, const ECG& bpEC
 
     int n = std::min(ptSignal.size(), bpSignal.size());
 
-    int minDistance = std::max(1, (int)(0.35f * fs));
+    int minDistance = std::max(1, (int)(0.25f * fs));
     int refractory = minDistance;
     int window = std::max(1, (int)(0.08f * fs));
 
-    float height = percentile(ptSignal, 80.0f);
-
+    //float height = percentile(ptSignal, 80.0f);
+    float height = percentile(ptSignal, 35.0f);
     std::vector<int> coarsePeaks = findPeaks(
         ptSignal,
         minDistance,
@@ -379,24 +401,49 @@ std::vector<int> HeartRateMonitor::detectPeaks(const ECG& ptECG, const ECG& bpEC
     float SPKF = 0.0f, NPKF = 0.0f;
     float TH1I = 0.0f, TH2I = 0.0f;
     float TH1F = 0.0f, TH2F = 0.0f;
+int initStart = std::min(n - 1, (int)(2.0f * fs));
+int initEnd   = std::min(n,     (int)(8.0f * fs));
 
-    int initLen = std::min(n, (int)(2.0f * fs));
+std::vector<float> initPT;
+std::vector<float> initBP;
 
-    float initMax = 0.0f;
-    for (int i = 0; i < initLen; ++i) {
-        initMax = std::max(initMax, ptSignal[i]);
-    }
+for (int i = initStart; i < initEnd; ++i) {
+    initPT.push_back(ptSignal[i]);
+    initBP.push_back(std::abs(bpSignal[i]));
+}
 
-    SPKI = 0.6f * initMax;
-    NPKI = 0.1f * initMax;
+if (initPT.empty() || initBP.empty()) {
+    return finalPeaks;
+}
 
-    float bpInitMax = 0.0f;
-    for (int i = 0; i < initLen; ++i) {
-        bpInitMax = std::max(bpInitMax, std::abs(bpSignal[i]));
-    }
+float initPTMed = percentile(initPT, 50.0f);
+float initPT90  = percentile(initPT, 90.0f);
 
-    SPKF = 0.6f * bpInitMax;
-    NPKF = 0.1f * SPKF;
+float initBPMed = percentile(initBP, 50.0f);
+float initBP90  = percentile(initBP, 90.0f);
+
+SPKI = initPT90;
+NPKI = initPTMed;
+
+SPKF = initBP90;
+NPKF = initBPMed;
+    // int initLen = std::min(n, (int)(2.0f * fs));
+
+    // float initMax = 0.0f;
+    // for (int i = 0; i < initLen; ++i) {
+    //     initMax = std::max(initMax, ptSignal[i]);
+    // }
+
+    // SPKI = 0.6f * initMax;
+    // NPKI = 0.1f * initMax;
+
+    // float bpInitMax = 0.0f;
+    // for (int i = 0; i < initLen; ++i) {
+    //     bpInitMax = std::max(bpInitMax, std::abs(bpSignal[i]));
+    // }
+
+    // SPKF = 0.6f * bpInitMax;
+    // NPKF = 0.1f * SPKF;
 
     TH1I = NPKI + 0.25f * (SPKI - NPKI);
     TH2I = 0.5f * TH1I;
@@ -539,11 +586,11 @@ std::vector<int> HeartRateMonitor::detectPeaks(const ECG& ptECG, const ECG& bpEC
         }
     }
 
-    if (!cleaned.empty())
-        cleaned.erase(cleaned.begin());
+//    if (!cleaned.empty())
+//         cleaned.erase(cleaned.begin());
 
-    if (!cleaned.empty())
-        cleaned.pop_back();
+//     if (!cleaned.empty())
+//         cleaned.pop_back();
     return cleaned;
 }
 
@@ -558,7 +605,9 @@ std::pair<float, float> HeartRateMonitor::hrStats(const ECG& ptECG, const std::v
 
     for (size_t i = 1; i < peaks.size(); ++i) //  make vectors of rr intervals, initial absolute thresholding
     {
-        float interval_ms = ((peaks[i] - peaks[i - 1]) / fs)* 1000.0f;
+        float interval_ms =
+    (ptECG.t[peaks[i]] - ptECG.t[peaks[i - 1]]) * 1000.0f;
+        //float interval_ms = ((peaks[i] - peaks[i - 1]) / fs)* 1000.0f;
 
         if (interval_ms > 300.0f && interval_ms < 1500.0f)
             rr_ms.push_back(interval_ms);
@@ -568,23 +617,29 @@ std::pair<float, float> HeartRateMonitor::hrStats(const ECG& ptECG, const std::v
     float rmssd = 0.0f;
 
     std::vector<float> filtered_rr_ms;
-    if (!rr_ms.empty()) { // median thresholding (rr interval removal)
-        std::vector<float> sorted_rr = rr_ms;
-        std::sort(sorted_rr.begin(), sorted_rr.end());
 
-        size_t n = sorted_rr.size();
-        float med = (n % 2 == 0)
-            ? (sorted_rr[n / 2 - 1] + sorted_rr[n / 2]) * 0.5f  // even num rr -> median = avg of two middle
-            : sorted_rr[n / 2];  // odd num rr -> median = middle
+if (rr_ms.size() >= 3) {
+    // Step 1: median RR
+    std::vector<float> sorted_rr = rr_ms;
+    std::sort(sorted_rr.begin(), sorted_rr.end());
 
-        for (float r : rr_ms) {
-            if (std::fabs(r - med) / med < 0.15f)
-                filtered_rr_ms.push_back(r);
-            else 
-                intRemovedCount++;
-            }
+    size_t n = sorted_rr.size();
+    float med = (n % 2 == 0)
+        ? (sorted_rr[n / 2 - 1] + sorted_rr[n / 2]) * 0.5f
+        : sorted_rr[n / 2];
 
+    // Step 2: remove intervals far from median
+    for (float r : rr_ms) {
+        float dev = std::fabs(r - med) / med;
+
+        // 25% is stricter than 40%, better for artifact removal
+        if (dev < 0.25f) {
+            filtered_rr_ms.push_back(r);
+        } else {
+            intRemovedCount++;
+        }
     }
+}
 
     if (filtered_rr_ms.size() >= 3) {  // calculate hr + hrv
         std::vector<float> squared_diffs;
@@ -605,8 +660,10 @@ std::pair<float, float> HeartRateMonitor::hrStats(const ECG& ptECG, const std::v
 
 // returns all results to class variables e.g. hrm.rmssd
 void HeartRateMonitor::ptProcess() {
-    HeartRateMonitor::ptECG = HeartRateMonitor::panTompkins(HeartRateMonitor::rawECG);
+    //HeartRateMonitor::ptECG = HeartRateMonitor::panTompkins(HeartRateMonitor::rawECG);
+    //HeartRateMonitor::bpECG = HeartRateMonitor::bandPass(HeartRateMonitor::rawECG);
     HeartRateMonitor::bpECG = HeartRateMonitor::bandPass(HeartRateMonitor::rawECG);
+    HeartRateMonitor::ptECG = HeartRateMonitor::panTompkins(HeartRateMonitor::rawECG);
     HeartRateMonitor::peakIdx = HeartRateMonitor::detectPeaks(HeartRateMonitor::ptECG, HeartRateMonitor::bpECG);
     auto [hr, rmssd] = HeartRateMonitor::hrStats(HeartRateMonitor::ptECG, HeartRateMonitor::peakIdx);
     HeartRateMonitor::hr = hr;
