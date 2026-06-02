@@ -16,7 +16,7 @@ Adafruit_LPS35HW downstreamSensor = Adafruit_LPS35HW();
 // SETTINGS
 // ============================================================
 
-const int ZERO_SAMPLES = 750;
+const int ZERO_SAMPLES = 150;       //750 is right
 const int ZERO_DELAY_MS = 13;       // 200 * 10 ms = 2 seconds zeroing
 const int SAMPLE_DELAY_MS = 13;     // about 50 Hz
 
