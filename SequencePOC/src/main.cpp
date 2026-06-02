@@ -22,7 +22,10 @@ void loop() {
   hrm.ptProcess();
   Serial.println(hrm.hr);
   Serial.println(hrm.rmssd);
+  Serial.print("Leads Off Count: ");
   Serial.println(hrm.leadsOffCount);
+  Serial.print("Intervals Removed: ");
+  Serial.println(hrm.intRemovedCount);
 
   int n = hrm.ptECG.val.size();
   Serial.println("sending data");

@@ -578,8 +578,10 @@ std::pair<float, float> HeartRateMonitor::hrStats(const ECG& ptECG, const std::v
             : sorted_rr[n / 2];  // odd num rr -> median = middle
 
         for (float r : rr_ms) {
-            if (std::fabs(r - med) / med < 0.2f)
+            if (std::fabs(r - med) / med < 0.15f)
                 filtered_rr_ms.push_back(r);
+            else 
+                intRemovedCount++;
             }
 
     }
