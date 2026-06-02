@@ -54,6 +54,9 @@ void HeartRateMonitor::timedCollect(int t) {
     int tMil = t * 1000;
     unsigned long start = millis();
     while (millis() - start < tMil){
+        if (leadsOff()) {
+            leadsOffCount++;
+        }
         HeartRateMonitor::startCollecting();
         HeartRateMonitor::updateRaw();
         Serial.println("collecting. . ."); // comment out for clean version

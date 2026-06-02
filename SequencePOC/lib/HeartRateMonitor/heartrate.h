@@ -51,6 +51,7 @@ public:
 
     void startCollecting();
     void updateRaw();
+    int leadsOffCount;
 
     // processing
     ECG bandPass(const ECG& ecg);

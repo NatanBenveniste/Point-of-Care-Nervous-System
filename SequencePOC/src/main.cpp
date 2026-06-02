@@ -16,22 +16,13 @@ void loop() {
   unsigned long start = millis();
 
   Serial.println("starting collect");
-  hrm.timedCollect(10);
+  hrm.timedCollect(30);
   Serial.println("finished collect");
 
-  hrm.ptECG = hrm.panTompkins(hrm.rawECG);
-  Serial.println("pan tompkins done");
-  hrm.bpECG = hrm.bandPass(hrm.rawECG);
-  Serial.println("bandpass done");
-  hrm.peakIdx = hrm.detectPeaks(hrm.ptECG, hrm.bpECG);
-  Serial.println("peak detection done, peak number: ");
-  Serial.println(hrm.peakIdx.size());
-  auto [hr, rmssd] = hrm.hrStats(hrm.ptECG, hrm.peakIdx);
-  Serial.println("heart rate stats done: ");
-  hrm.hr = hr;
-  hrm.rmssd = rmssd;
-  Serial.println(hr);
-  Serial.println(rmssd);
+  hrm.ptProcess();
+  Serial.println(hrm.hr);
+  Serial.println(hrm.rmssd);
+  Serial.println(hrm.leadsOffCount);
 
   int n = hrm.ptECG.val.size();
   Serial.println("sending data");
