@@ -18,7 +18,6 @@ void DisplayManager::init() {
     display.begin(THINKINK_TRICOLOR);
     display.setRotation(0); // 0 for flat, 2 for in device
     display.setTextColor(EPD_BLACK);
-    display.setFont(&FreeSerif9pt7b);
     Serial.println("Display begin done");
 }
 
@@ -126,17 +125,40 @@ void DisplayManager::writeBig(const int x, const int y, const char *text) {
     display.display();
 }
 
+void DisplayManager::fontTest() {
+    display.clearBuffer();
+    display.setCursor(0,20);
+    display.setFont(&FreeSerif9pt7b);
+    display.print("test ");
+    display.setFont(&FreeSerif12pt7b);
+    display.println("test ");
+    display.setFont(&FreeSerif18pt7b);
+    display.print("test ");
+    display.setFont(&FreeSerif24pt7b);
+    display.print("test ");
+    display.display();
+}
+
+void DisplayManager::centerText(const String &text, const int y) {
+    int16_t x1, y1;
+    uint16_t w, h;
+
+    display.getTextBounds(text, 0, 0, &x1, &y1, &w, &h);
+    int16_t x = (display.width() - w)/2;
+    display.setCursor(x, y);
+    display.print(text);
+}
 
 
 // menu functions
 void DisplayManager::startScreen() {
     display.clearBuffer();
-    display.setCursor(60, 100);
+    display.setFont(&FreeSerif9pt7b);
     display.setTextSize(2);
-    display.println("67 HRV MONITOR");
+    centerText("67 HRV MONITOR", 100);
     display.setTextSize(1);
-    display.setCursor(100,120);
-    display.println("Press START to begin exam");
+    display.setFont(&FreeSerif12pt7b);
+    centerText("Press START to begin exam", 120);
     display.display();
 }
 
@@ -146,6 +168,7 @@ void DisplayManager::infoScreen() {
     display.setCursor(0, 15);
     display.setTextSize(1);
     display.setTextWrap(true);
+    display.setFont(&FreeSerif9pt7b);
     display.println("This device measures heart rate variability (HRV) and ");
     display.println("its reaction to symapthetic and parasympathetic stimuli.");
     display.println("The examination consists of four procedures:");
@@ -163,26 +186,20 @@ void DisplayManager::infoScreen() {
 
 void DisplayManager::baseHRVprog() {
     display.clearBuffer();
-    display.setCursor(25, 110);
-    display.setTextSize(2);
-    display.println("Measuring Resting HRV");
-    int y = display.getCursorY();
-    int x = display.getCursorX();
-    display.setCursor(180, y);
-    display.println(". . .");
+    display.setFont(&FreeSerif18pt7b);
     display.setTextSize(1);
+    centerText("Measuring Resting HRV", 110);
+    centerText(". . .", 130);
     display.setFont(&FreeSerif9pt7b);
-    y = display.getCursorY();
-    x = display.getCursorX();
-    display.setCursor(80, y);
-    display.println("Press STOP at any time to stop");
+    centerText("Press STOP at any time to stop", 150);
     display.display();
 }
 
 void DisplayManager::baseHRVresults(const float hr, const float rmssd) {
     display.clearBuffer();
-    display.setCursor(0, 15);
+    display.setCursor(0, 80);
     display.setTextSize(1);
+    display.setFont(&FreeSerif12pt7b);
     display.print("Resting Heart Rate (BPM): ");
     display.println(hr);
     display.print("Resting HRV (RMSSD, ms): ");
@@ -194,58 +211,131 @@ void DisplayManager::baseHRVresults(const float hr, const float rmssd) {
 
 void DisplayManager::BPprog() {
     display.clearBuffer();
-    display.setCursor(25, 110);
-    display.setTextSize(2);
-    display.println("Measuring Blood Pressure");
-    int y = display.getCursorY();
-    int x = display.getCursorX();
-    display.setCursor(180, y);
-    display.println(". . .");
-    display.setTextSize(1);
+    display.setFont(&FreeSerif18pt7b);
+    centerText("Measuring Blood Pressure", 110);
+    centerText(". . .", 130);
     display.setFont(&FreeSerif9pt7b);
-    y = display.getCursorY();
-    x = display.getCursorX();
-    display.setCursor(80, y);
-    display.println("Press STOP at any time to stop");
+    centerText("Press STOP at any time to stop", 150);
     display.display();
 }
 
-void DisplayManager::BPresults(const float SBP, const float DBP) {
+void DisplayManager::BPresults(const int SBP, const int DBP) {
     display.clearBuffer();
-    display.setCursor(0, 15);
-    display.print("Blood Pressure (SYS/DIA), mmHg): ");
+    display.setCursor(0, 80);
+    display.setFont(&FreeSerif12pt7b);
+    display.print("Blood Pressure (SYS/DIA): ");
     display.print(SBP);
     display.print("/");
     display.println(DBP);
+    display.println(" ");
     display.setFont(&FreeSerifBold9pt7b);
-    display.println("Press START to continue to cuff constricted");
-    display.println("HRV test");
+    display.println("Press START to continue to HRV measurement");
+    display.println("with cuff stimulus");
     display.display();
 };
 
 void DisplayManager::bpStimProg() {
     display.clearBuffer();
-    display.setCursor(25, 110);
-    display.setTextSize(2);
-    display.println("Measuring Blood Pressure");
+    display.setFont(&FreeSerif18pt7b);
     display.setTextSize(1);
-    display.setFont(&FreeSerif9pt7b);
-    int y = display.getCursorY();
-    int x = display.getCursorX();
-    display.setCursor(80, y);
-    display.println("Press STOP at any time to stop");
+    centerText("Measuring HRV", 110);
+    display.setFont(&FreeSerif12pt7b);
+    centerText("(With Cuff Stimulus)", 130);
+    display.setFont(&FreeSerifBold9pt7b);
+    centerText("Press STOP at any time to stop", 150);
     display.display();
 }
 
 void DisplayManager::bpStimResults(const float hr, const float rmssd) {
     display.clearBuffer();
-    display.setCursor(0, 15);
-    display.setTextSize(1);
-    display.print("Cuff Stimulated Heart Rate (BPM): ");
+    display.setCursor(0, 80);
+    display.setFont(&FreeSerif12pt7b);
+    display.print("Cuff Stim. Heart Rate (BPM): ");
     display.println(hr);
-    display.print("Cuff Stimualted HRV (RMSSD, ms): ");
+    display.print("Cuff Stim. HRV (RMSSD, ms): ");
     display.println(rmssd);
     display.setFont(&FreeSerifBold9pt7b);
-    display.print("Press START to continue to deep breathing HRV test");
+    display.println("Press START to continue to HRV measurement");
+    display.println("with deep breathing stimulus");
     display.display();
 }
+
+void DisplayManager::spStimProg() {
+    display.clearBuffer();
+    display.setFont(&FreeSerif18pt7b);
+    display.setTextSize(1);
+    centerText("Measuring HRV", 110);
+    display.setFont(&FreeSerif12pt7b);
+    centerText("(With Breathing Stimulus)", 130);
+    display.setFont(&FreeSerifBold9pt7b);
+    centerText("Press STOP at any time to stop", 150);
+    display.display();
+}
+
+void DisplayManager::spStimResults(const float hr, const float rmssd, const float fvc) {
+    display.clearBuffer();
+    display.setCursor(0, 80);
+    display.setFont(&FreeSerif12pt7b);
+    display.print("Breath Stim. Heart Rate (BPM): ");
+    display.println(hr);
+    display.print("Breath Stim. HRV (RMSSD, ms): ");
+    display.println(rmssd);
+    display.print("Average Breath Volume (L): ");
+    display.println(fvc);
+    display.setFont(&FreeSerifBold9pt7b);
+    display.println("Press START to view final results");
+    display.display();
+}
+
+void DisplayManager::finalResults(const float rstHR, const float rstHRV, 
+    const float SBP, const float DBP,
+    const float bpHR, const float bpHRV,
+    const float spHR, const float spHRV, const float fvc) {
+    display.clearBuffer();
+    display.setCursor(0, 15);
+    display.setFont(&FreeSerif12pt7b);
+    display.println("Full HRV Exam Results");
+    display.setFont(&FreeSerif9pt7b);
+    
+    display.setCursor(0, 60);
+    display.print("Resting HR, HRV: ");
+    display.setFont(&FreeSerif12pt7b);
+    display.print(rstHR);
+    display.print(" BPM, ");
+    display.print(rstHRV);
+    display.println(" ms");
+
+    display.setCursor(0, 90);
+    display.setFont(&FreeSerif9pt7b);
+    display.print("Cuff Stim. HR, HRV: ");
+    display.setFont(&FreeSerif12pt7b);
+    display.print(rstHR);
+    display.print(" BPM, ");
+    display.print(rstHRV);
+    display.println(" ms");
+
+    display.setCursor(0, 120);
+    display.setFont(&FreeSerif9pt7b);
+    display.print("Breath Stim. HR, HRV: ");
+    display.setFont(&FreeSerif12pt7b);
+    display.print(rstHR);
+    display.print(" BPM, ");
+    display.print(rstHRV);
+    display.println(" ms");
+
+    display.setCursor(0, 150);
+    display.setFont(&FreeSerif9pt7b);
+    display.print("Blood Pressure: ");
+    display.setFont(&FreeSerif12pt7b);
+    display.print(SBP);
+    display.print("/");
+    display.println(DBP);
+
+    display.setCursor(0, 180);
+    display.setFont(&FreeSerif9pt7b);
+    display.print("Average Breath Volume: ");
+    display.setFont(&FreeSerif12pt7b);
+    display.print(fvc);
+    display.println(" L");
+    display.display();
+    }

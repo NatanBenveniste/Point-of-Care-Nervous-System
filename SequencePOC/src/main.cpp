@@ -19,18 +19,29 @@ void setup() {
 
 
 void loop() {
-  // delay(2000);
-  // screen.startScreen();
-  // waitStart();
-  // screen.infoScreen();
-  // waitStart();
-  // screen.baseHRVprog();
-  // delay(1000);
-  // screen.baseHRVresults(67, 67);
-  // waitStart();
-  // screen.BPprog();
-  // delay(1000);
+  delay(2000);
+  screen.startScreen();
+  waitStart();
+  screen.infoScreen();
+  waitStart();
+  screen.baseHRVprog();
+  waitStart();
+  screen.baseHRVresults(67, 67);
+  waitStart();
+  screen.BPprog();
+  waitStart();
   screen.BPresults(120, 80);
+  waitStart();
+  screen.bpStimProg();
+  waitStart();
+  screen.bpStimResults(67, 67);
+  waitStart();
+  screen.spStimProg();
+  waitStart();
+  screen.spStimResults(67, 67, 0.67);
+  waitStart();
+  screen.finalResults(67, 67, 67, 67, 67, 67, 67, 67, 67);
+
 
   
 

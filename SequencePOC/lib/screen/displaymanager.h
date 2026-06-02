@@ -6,6 +6,9 @@
 #include <Fonts/FreeSans9pt7b.h>
 #include <Fonts/FreeSerif9pt7b.h>
 #include <Fonts/FreeSerifBold9pt7b.h>
+#include <Fonts/FreeSerif12pt7b.h>
+#include <Fonts/FreeSerif18pt7b.h>
+#include <Fonts/FreeSerif24pt7b.h>
 
 // spi pins
 #define EPD_SPI SPI1
@@ -25,6 +28,8 @@ public:
 
     void init();
 
+    void fontTest();
+
     // menu functions
     void startScreen();
     void infoScreen();
@@ -33,15 +38,18 @@ public:
     void baseHRVresults(const float hr, const float rmssd);
 
     void BPprog();
-    void BPresults(const float SBP, const float DBP);
+    void BPresults(const int SBP, const int DBP);
 
     void bpStimProg();
     void bpStimResults(const float hr, const float rmssd);
 
     void spStimProg();
-    void spStimResults(const float hr, const float rmssd);
+    void spStimResults(const float hr, const float rmssd, const float fvc);
 
-    void finalResults();
+    void finalResults(const float rstHR, const float rstHRV, 
+    const float SBP, const float DBP,
+    const float bpHR, const float bpHRV,
+    const float spHR, const float spHRV, const float fvc);
 
 private:
     void testdrawtext(const char *text, uint16_t color);
@@ -50,5 +58,8 @@ private:
     void runDemo();
     void fillScreenTest(const char c);
     void writeBig(const int x, const int y, const char *text);
+
+    // helper
+    void centerText(const String &text, const int y);
 
 };
