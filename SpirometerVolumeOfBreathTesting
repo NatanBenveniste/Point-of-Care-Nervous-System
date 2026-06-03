@@ -1,0 +1,65 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import os
+
+
+# ============================================================
+# SETTINGS
+# ============================================================
+
+CSV_FILE = r"C:\Users\Natan Benveniste\Capstone\Point-of-Care-Nervous-System\pressure_breath.csv"
+
+# ============================================================
+# LOAD DATA
+# ============================================================
+
+df = pd.read_csv(CSV_FILE)
+
+# Convert time to seconds
+df["time_s"] = df["time_ms"] / 1000.0
+# ============================================================
+# PRESSURE WINDOW: RELATIVE PRESSURES + DIFFERENTIAL PRESSURE
+# ============================================================
+
+df["zeroed_deltaP_smooth"] = df["deltaP_zeroed_Pa"].rolling(window=9, center=True).mean()
+df["zeroed_deltaP_smooth"] = df["zeroed_deltaP_smooth"].bfill().ffill()
+
+fig, ax = plt.subplots(2, 1, figsize=(11, 7), sharex=True)
+
+# Graph 1: upstream and downstream relative pressure together
+ax[0].plot(df["time_s"], df["upstream_rel_Pa"], label="Upstream relative pressure")
+ax[0].plot(df["time_s"], df["downstream_rel_Pa"], label="Downstream relative pressure")
+
+ax[0].set_ylabel("Relative Pressure [Pa]")
+ax[0].set_title("Upstream and Downstream Relative Pressure")
+ax[0].legend()
+ax[0].grid(True)
+
+# Graph 2: differential pressure
+ax[1].plot(df["time_s"], df["zeroed_deltaP_smooth"], label="Smoothed zeroed differential pressure")
+
+ax[1].set_xlabel("Time [s]")
+ax[1].set_ylabel("Differential Pressure [Pa]")
+ax[1].set_title("Zeroed Differential Pressure Across Spirometer Core")
+ax[1].legend()
+ax[1].grid(True)
+
+plt.tight_layout()
+plt.show()
+
+
+# ============================================================
+# SEPARATE WINDOW: READ GAP VS TIME
+# ============================================================
+
+plt.figure(figsize=(10, 5))
+
+plt.plot(df["time_s"], df["read_gap_us"], label="Sensor read gap")
+
+plt.xlabel("Time [s]")
+plt.ylabel("Read Gap [microseconds]")
+plt.title("Time Gap Between Upstream and Downstream Sensor Reads")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
