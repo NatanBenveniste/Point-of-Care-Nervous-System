@@ -1,3 +1,5 @@
+#pragma once
+
 #include <Arduino.h>
 #include <math.h>
 #include <vector>
@@ -35,43 +37,46 @@ public:
     ECG rawECG;
     ECG bpECG;
     ECG ptECG;
-    std::vector<int> peakIdx;
+
+    std::vector<int32_t> peakIdx;
+    std::vector<int32_t> removedIntervals;
+    std::vector<float> rrIntervals;
+
     float hr;
     float rmssd;
 
     // basic
     void init();    
-    bool leadsOff();
-    float readECG();
+    bool leadsOff() const;
+    float readECG() const;
 
     // collecting
     bool collecting;
-    std::chrono::steady_clock::time_point startTime;
+    uint32_t startTime;
     void timedCollect(int t);
-
     void startCollecting();
     void updateRaw();
     int leadsOffCount;
-    int intRemovedCount;
+    int removedRRCount;
 
     // processing
     ECG bandPass(const ECG& ecg);
     ECG panTompkins(const ECG& ecg);
     // ECG trimECG(ECG ecg, float trimTime);
     
-    std::vector<int> detectPeaks(const ECG& ptECG, const ECG& bpECG);
-    std::pair<float, float> hrStats(const ECG& ptECG, const std::vector<int>& peaks);
+    std::vector<int32_t> detectPeaks(const ECG& ptECG, const ECG& bpECG);
+    std::pair<float, float> hrStats(const std::vector<float>& filtered_rr_ms);
+
 
     void ptProcess();
+    void buildRR(const ECG& ptECG, const std::vector<int32_t>& peaks);
     void clearVecs();
 
 
 private:    
-    static inline void designBP(float fs, float f1, float f2, float coeffs[5]);
+    void designBP(float fs, float f1, float f2, float coeffs[5]);
 
 };
-
-
 
 // serial package sender for ECG data
 static void writeU32(uint32_t x) {
@@ -87,11 +92,10 @@ static void writeFloatVector(const float* data, uint32_t n) {
     Serial.write(reinterpret_cast<const uint8_t*>(data), n * sizeof(float));
 }
 
-static void writeIntVector(const int* data, uint32_t n) {
+static void writeIntVector(const int32_t* data, uint32_t n) {
     writeU32(n);
     Serial.write(reinterpret_cast<const uint8_t*>(data), n * sizeof(int));
 }
-
 static void sendECGPacket(
     const float* timeData,
     uint32_t timeLen,
@@ -102,22 +106,24 @@ static void sendECGPacket(
     const float* processedECG,
     uint32_t processedLen,
 
-    const int* peakIndices,
+    const int32_t* peakIndices,
     uint32_t peakLen,
+
+    const int32_t* removedIndices,
+    uint32_t removedLen,
 
     float heartRate,
     float rmssd
-) {
-    Serial.println("sending data");
+)
+{
 
     // Magic header so Python knows binary packet starts here
     Serial.write((const uint8_t*)"ECG1", 4);
-
     writeFloatVector(timeData, timeLen);
     writeFloatVector(rawECG, rawLen);
     writeFloatVector(processedECG, processedLen);
     writeIntVector(peakIndices, peakLen);
-
+    writeIntVector(removedIndices, removedLen);
     writeFloat(heartRate);
     writeFloat(rmssd);
 }

@@ -1,7 +1,14 @@
 #include "heartrate.h"
-
+#include <set>
+#include <numeric>
+#include <limits>
+#include <cmath>
 HeartRateMonitor::HeartRateMonitor(){
-
+    collecting = false;
+    hr = 0.0f;
+    rmssd = 0.0f;
+    leadsOffCount = 0;
+    removedRRCount = 0;
 }
 // -----------------------------------------------------------------------------------------------------
 // basic + collection functions
@@ -15,12 +22,12 @@ void HeartRateMonitor::init() {
 }
 
 // electrode leads no signal
-bool HeartRateMonitor::leadsOff() {
+bool HeartRateMonitor::leadsOff() const {
     return(digitalRead(leadOffMinus) == HIGH || digitalRead(leadOffPlus) == HIGH);
 }
 
 // return instantaneous ecg reading
-float HeartRateMonitor::readECG() {
+float HeartRateMonitor::readECG() const {
     if (HeartRateMonitor::leadsOff()) {
         return -1;
     }
@@ -33,7 +40,7 @@ void HeartRateMonitor::startCollecting() {
     if (collecting)
         return;
     collecting = true;
-    startTime = std::chrono::steady_clock::now();
+    startTime = micros();
 }
 
 // add instantantaneous ecg reading to current raw signal vector
@@ -41,8 +48,8 @@ void HeartRateMonitor::updateRaw() {
     if(!collecting)
         return;
 
-    auto now = std::chrono::steady_clock::now();
-    float t = std::chrono::duration<float>(now - startTime).count();
+    uint32_t currentTime = micros();
+    float t = (currentTime - startTime) * 1e-6f;
     float v = readECG();
 
     rawECG.t.push_back(t);
@@ -53,7 +60,7 @@ void HeartRateMonitor::updateRaw() {
 void HeartRateMonitor::timedCollect(int t) {
     clearVecs();
     leadsOffCount = 0;
-    intRemovedCount = 0;
+    removedRRCount = 0;
 
     int tMil = t * 1000;
     unsigned long start = millis();
@@ -251,7 +258,7 @@ static float percentile(std::vector<float> v, float pct) { // returns value at g
 }
 
 
-static std::vector<int> findPeaks(const std::vector<float>& x, int distance, float height, float prominence) {
+static std::vector<int32_t> findPeaks(const std::vector<float>& x, int distance, float height, float prominence) {
     struct Peak {
         int idx;
         float val;
@@ -287,7 +294,7 @@ static std::vector<int> findPeaks(const std::vector<float>& x, int distance, flo
                   return a.val > b.val;
               });
 
-    std::vector<int> selected;
+    std::vector<int32_t> selected;
 
     for (const auto& p : candidates) {
         bool tooClose = false;
@@ -304,12 +311,12 @@ static std::vector<int> findPeaks(const std::vector<float>& x, int distance, flo
     return selected;
 }
 
-static std::vector<int> findPeaksAlt(const std::vector<float>& x,
+static std::vector<int32_t> findPeaksAlt(const std::vector<float>& x,
                                         int distance,
                                         float height,
                                         float prominence)
 {
-    std::vector<int> peaks;
+    std::vector<int32_t> peaks;
 
     if (x.size() < 3)
         return peaks;
@@ -347,7 +354,7 @@ static std::vector<int> findPeaksAlt(const std::vector<float>& x,
                   return a.val > b.val;
               });
 
-    std::vector<int> selected;
+    std::vector<int32_t> selected;
 
     for (const auto& c : candidates)
     {
@@ -371,12 +378,12 @@ static std::vector<int> findPeaksAlt(const std::vector<float>& x,
 }
 
 // returns vector indices of identified peaks, inputs: pan tompkins ecg, bandpass only ecg
-std::vector<int> HeartRateMonitor::detectPeaks(const ECG& ptECG, const ECG& bpECG) {
+std::vector<int32_t> HeartRateMonitor::detectPeaks(const ECG& ptECG, const ECG& bpECG) {
     const std::vector<float>& ptSignal = ptECG.val;
     const std::vector<float>& bpSignal = bpECG.val;
     const std::vector<float>& t = ptECG.t;
     const float fs = getFs(ptECG); // sampling frequency
-    std::vector<int> finalPeaks;
+    std::vector<int32_t> finalPeaks;
 
     if (ptSignal.empty() || bpSignal.empty() || fs <= 0) {
         return finalPeaks;
@@ -390,7 +397,7 @@ std::vector<int> HeartRateMonitor::detectPeaks(const ECG& ptECG, const ECG& bpEC
 
     //float height = percentile(ptSignal, 80.0f);
     float height = percentile(ptSignal, 35.0f);
-    std::vector<int> coarsePeaks = findPeaks(
+    std::vector<int32_t> coarsePeaks = findPeaks(
         ptSignal,
         minDistance,
         height,
@@ -477,9 +484,9 @@ NPKF = initBPMed;
         }
     };
 
-    std::set<int> searchbackDone;
+    std::set<int32_t> searchbackDone;
 
-    int lastPeak = std::numeric_limits<int>::min() / 2;
+    int32_t lastPeak = std::numeric_limits<int32_t>::min() / 2;
 
     for (int i = 0; i < (int)coarsePeaks.size(); ++i) {
         int p = coarsePeaks[i];
@@ -579,8 +586,8 @@ NPKF = initBPMed;
     std::sort(finalPeaks.begin(), finalPeaks.end());
     finalPeaks.erase(std::unique(finalPeaks.begin(), finalPeaks.end()), finalPeaks.end());
 
-    std::vector<int> cleaned;
-    for (int p : finalPeaks) {
+    std::vector<int32_t> cleaned;
+    for (int32_t p : finalPeaks) {
         if (cleaned.empty() || p - cleaned.back() >= refractory) {
             cleaned.push_back(p);
         }
@@ -596,14 +603,20 @@ NPKF = initBPMed;
 
 
 // returns both hr(bpm) and rmssd(ms), input: pan tompkins ECG, peaks vector
-std::pair<float, float> HeartRateMonitor::hrStats(const ECG& ptECG, const std::vector<int>& peaks) {
+void HeartRateMonitor::buildRR(const ECG& ptECG, const std::vector<int32_t>& peaks) {
     const float fs = getFs(ptECG); // sampling frequency
     if (ptECG.t.size() < 2 || peaks.size() < 4 || fs <= 0.0f)
-        return {0.0f, 0.0f};
+        return;
+    
+    int startIdx = 0;
+    while (startIdx < (int)peaks.size() - 1 && ptECG.t[peaks[startIdx]] < 2.0f) {
+        startIdx++;
+    }
 
     std::vector<float> rr_ms;
+    rr_ms.reserve(peaks.size()); // reserve space to avoid reallocations
 
-    for (size_t i = 1; i < peaks.size(); ++i) //  make vectors of rr intervals, initial absolute thresholding
+    for (size_t i = startIdx + 1; i < peaks.size(); ++i) //  make vectors of rr intervals, initial absolute thresholding
     {
         float interval_ms =
     (ptECG.t[peaks[i]] - ptECG.t[peaks[i - 1]]) * 1000.0f;
@@ -613,12 +626,10 @@ std::pair<float, float> HeartRateMonitor::hrStats(const ECG& ptECG, const std::v
             rr_ms.push_back(interval_ms);
     }
     
-    float hr = 0.0f; // preallocate float outputs
-    float rmssd = 0.0f;
+    if (rr_ms.size() < 3) {
+        return; // not enough valid RR intervals to compute stats
+    }
 
-    std::vector<float> filtered_rr_ms;
-
-if (rr_ms.size() >= 3) {
     // Step 1: median RR
     std::vector<float> sorted_rr = rr_ms;
     std::sort(sorted_rr.begin(), sorted_rr.end());
@@ -629,30 +640,50 @@ if (rr_ms.size() >= 3) {
         : sorted_rr[n / 2];
 
     // Step 2: remove intervals far from median
-    for (float r : rr_ms) {
+    removedRRCount = 0;
+    removedIntervals.clear();  // IMPORTANT: add this before loop
+
+    for (size_t i = 0; i < rr_ms.size(); i++) {
+        float r = rr_ms[i];
         float dev = std::fabs(r - med) / med;
 
-        // 25% is stricter than 40%, better for artifact removal
         if (dev < 0.25f) {
-            filtered_rr_ms.push_back(r);
+            rrIntervals.push_back(r);
         } else {
-            intRemovedCount++;
+            removedRRCount++;
+            removedIntervals.push_back((int)i);  // store RR index
         }
     }
+    Serial.print("Removed count: ");
+    Serial.println(removedRRCount);
+    Serial.print("Removed indices: ");
+    for (int idx : removedIntervals) {
+        Serial.print(idx);
+        Serial.print(" ");
+    }
+    Serial.println();
 }
 
-    if (filtered_rr_ms.size() >= 3) {  // calculate hr + hrv
-        std::vector<float> squared_diffs;
-
-        hr = 60000.0f / meanVec(filtered_rr_ms);
-
-        for (size_t i = 1; i < filtered_rr_ms.size(); ++i) {
-            float d = filtered_rr_ms[i] - filtered_rr_ms[i - 1];
-            squared_diffs.push_back(d * d);
-        }
-
-        rmssd = std::sqrt(meanVec(squared_diffs));
+std::pair<float, float> HeartRateMonitor::hrStats(const std::vector<float>& filtered_rr_ms) {
+    if (filtered_rr_ms.size() < 3) {  // calculate hr + hrv
+        return {0.0f, 0.0f};
     }
+    
+    float hr = 0.0f;
+    float rmssd = 0.0f;
+
+    // HR
+    float sum = std::accumulate(filtered_rr_ms.begin(), filtered_rr_ms.end(), 0.0f);
+    float mean_rr = sum / filtered_rr_ms.size();
+    hr = 60000.0f / mean_rr;
+
+    // RMSSD
+    float sq_sum = 0.0f;
+    for (size_t i = 1; i < filtered_rr_ms.size(); i++) {
+        float diff = filtered_rr_ms[i] - filtered_rr_ms[i - 1];
+        sq_sum += diff * diff;
+    }
+    rmssd = std::sqrt(sq_sum / (filtered_rr_ms.size() - 1));
 
     return {hr, rmssd};
 }
@@ -660,15 +691,10 @@ if (rr_ms.size() >= 3) {
 
 // returns all results to class variables e.g. hrm.rmssd
 void HeartRateMonitor::ptProcess() {
-    //HeartRateMonitor::ptECG = HeartRateMonitor::panTompkins(HeartRateMonitor::rawECG);
-    //HeartRateMonitor::bpECG = HeartRateMonitor::bandPass(HeartRateMonitor::rawECG);
-    HeartRateMonitor::bpECG = HeartRateMonitor::bandPass(HeartRateMonitor::rawECG);
-    HeartRateMonitor::ptECG = HeartRateMonitor::panTompkins(HeartRateMonitor::rawECG);
-    HeartRateMonitor::peakIdx = HeartRateMonitor::detectPeaks(HeartRateMonitor::ptECG, HeartRateMonitor::bpECG);
-    auto [hr, rmssd] = HeartRateMonitor::hrStats(HeartRateMonitor::ptECG, HeartRateMonitor::peakIdx);
-    HeartRateMonitor::hr = hr;
-    HeartRateMonitor:: rmssd = rmssd;
-
+    bpECG = bandPass(rawECG);
+    ptECG = panTompkins(rawECG);
+    peakIdx = detectPeaks(ptECG, bpECG);
+    buildRR(ptECG, peakIdx);
 }
 
 void HeartRateMonitor::clearVecs() { 
@@ -678,4 +704,5 @@ void HeartRateMonitor::clearVecs() {
     std::vector<float>().swap(HeartRateMonitor::bpECG.val);
     std::vector<float>().swap(HeartRateMonitor::ptECG.t);
     std::vector<float>().swap(HeartRateMonitor::ptECG.val);
+    std::vector<int32_t>().swap(HeartRateMonitor::peakIdx);
 }
