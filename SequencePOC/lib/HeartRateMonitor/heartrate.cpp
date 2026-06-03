@@ -9,6 +9,10 @@ HeartRateMonitor::HeartRateMonitor(){
     rmssd = 0.0f;
     leadsOffCount = 0;
     removedRRCount = 0;
+    windowCount = 0;
+    targetWindows = 0;
+    windowStart = 0;
+    lastSampleTime = 0;
 }
 // -----------------------------------------------------------------------------------------------------
 // basic + collection functions
@@ -49,37 +53,17 @@ void HeartRateMonitor::updateRaw() {
         return;
 
     uint32_t currentTime = micros();
-    float t = (currentTime - startTime) * 1e-6f;
+    if (currentTime - lastSampleTime < 4000) // limit to ~250 Hz
+        return;
+    lastSampleTime = currentTime;
+    
+    float t = (currentTime - startTime) / 1000000.0f;
     float v = readECG();
-
     rawECG.t.push_back(t);
     rawECG.val.push_back(v);
 }
 
 // collect for a designated period, input: seconds
-void HeartRateMonitor::timedCollect(int t) {
-    clearVecs();
-    leadsOffCount = 0;
-    removedRRCount = 0;
-
-    int tMil = t * 1000;
-    unsigned long start = millis();
-
-    startCollecting();
-
-    while (millis() - start < tMil) {
-        if (leadsOff()) {
-            leadsOffCount++;
-        }
-
-        updateRaw();
-
-        // No Serial.println while sampling
-        delayMicroseconds(4000);   // ~250 Hz
-    }
-
-    collecting = false;
-}
 //     int tMil = t * 1000;
 //     unsigned long start = millis();
 //     while (millis() - start < tMil){
@@ -705,4 +689,19 @@ void HeartRateMonitor::clearVecs() {
     std::vector<float>().swap(HeartRateMonitor::ptECG.t);
     std::vector<float>().swap(HeartRateMonitor::ptECG.val);
     std::vector<int32_t>().swap(HeartRateMonitor::peakIdx);
+}
+
+void HeartRateMonitor::beginMeasurement(int seconds) {
+    rrIntervals.clear();
+    leadsOffCount = 0;
+    removedRRCount = 0;
+    windowCount = 0;
+    targetWindows = seconds / 30;
+    windowStart = micros();
+    clearVecs();
+    startCollecting();
+}
+
+bool HeartRateMonitor::windowElapsed() {
+    return (micros() - windowStart) >= 30000000UL;
 }

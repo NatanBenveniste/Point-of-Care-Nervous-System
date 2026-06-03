@@ -53,16 +53,19 @@ public:
     // collecting
     bool collecting;
     uint32_t startTime;
-    void timedCollect(int t);
-    void startCollecting();
-    void updateRaw();
+    uint32_t windowStart;
     int leadsOffCount;
     int removedRRCount;
+    int windowCount;
+    int targetWindows;
+    void startCollecting();
+    void updateRaw();
+    bool windowElapsed();
+    void beginMeasurement(int seconds);
 
     // processing
     ECG bandPass(const ECG& ecg);
     ECG panTompkins(const ECG& ecg);
-    // ECG trimECG(ECG ecg, float trimTime);
     
     std::vector<int32_t> detectPeaks(const ECG& ptECG, const ECG& bpECG);
     std::pair<float, float> hrStats(const std::vector<float>& filtered_rr_ms);
@@ -72,10 +75,9 @@ public:
     void buildRR(const ECG& ptECG, const std::vector<int32_t>& peaks);
     void clearVecs();
 
-
 private:    
     void designBP(float fs, float f1, float f2, float coeffs[5]);
-
+    uint32_t lastSampleTime;
 };
 
 // serial package sender for ECG data
