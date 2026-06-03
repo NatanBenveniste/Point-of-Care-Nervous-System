@@ -1,13 +1,32 @@
-#pragma once
+#ifndef BPCUFF_H
+#define BPCUFF_H
 
 #include <Arduino.h>
 #include <SPI.h>
 #include <Adafruit_LPS35HW.h>
 
-// Motor driver pins
-#define IN1 3
-#define IN2 2
-#define EEP 4
+// -----------------------------------------------------------------------------
+// Default pins
+// Change these to match your wiring, or use the constructor with explicit pins.
+// -----------------------------------------------------------------------------
+#ifndef BP_CUFF_IN1_PIN
+#define BP_CUFF_IN1_PIN 3
+#endif
+
+#ifndef BP_CUFF_IN2_PIN
+#define BP_CUFF_IN2_PIN 2
+#endif
+
+#ifndef BP_CUFF_EEP_PIN
+#define BP_CUFF_EEP_PIN 4
+#endif
+
+#ifndef BP_CUFF_VALVE_PIN
+#define BP_CUFF_VALVE_PIN 1
+#endif
+
+#ifndef BP_CUFF_LPS_CS_PIN
+#define BP_CUFF_LPS_CS_PIN 5
 
 // Valve pin
 #define VALVE 1
@@ -18,66 +37,135 @@
 #define LPS_MISO 16
 #define LPS_MOSI 19
 
+#endif
+
+struct BPReading {
+  float systolic;
+  float diastolic;
+  float map;
+  bool valid;
+  bool complete;
+};
+
+enum class BPCuffState {
+  IDLE,
+  BP_ZERO_DEFLATE,
+  BP_ZERO_SETTLE,
+  BP_INFLATE,
+  BP_SETTLE,
+  BP_DEFLATE_SAMPLE,
+  BP_FINAL_DEFLATE,
+  BP_DONE,
+  BP_ERROR,
+  MANUAL_INFLATE,
+  HOLD_ACTIVE,
+  MANUAL_DEFLATE
+};
+
 class CuffControl {
 public:
-    CuffControl();
+  CuffControl();
+  CuffControl(uint8_t in1Pin,
+              uint8_t in2Pin,
+              uint8_t eepPin,
+              uint8_t valvePin,
+              uint8_t lpsCsPin);
 
-    void setupHardware();
-    void serialControl();
+  bool bpCuffBegin();
 
-    // 1) Blocking BP measurement
-    void bpUpdate();
+  // Immediate hardware helpers
+  void pumpForward();
+  void stopPump();
+  void valveOpen();
+  void valveClose();
+  float readPressure_hPa();
+  float getPressureMmHg();
+  void zeroAmbientNow();
 
-    // 2) Non-blocking 5-minute inflation/hold
-    void bpInflate5Min();
+  // ---------------------------------------------------------------------------
+  // Nonblocking blood-pressure measurement.
+  // Call GetBloodPressure() every loop. The first call starts the sequence.
+  // It returns complete=false while running. When complete=true, valid tells
+  // whether systolic/diastolic are usable.
+  // ---------------------------------------------------------------------------
+  BPReading GetBloodPressure();
+  void StartBloodPressure();
+  bool IsBusy() const;
+  BPCuffState getState() const;
+  void Reset();
 
-    // 3) Non-blocking full deflation
-    void bpDeflate();
+  // ---------------------------------------------------------------------------
+  // Nonblocking cuff-control phases for the 5-minute hold workflow.
+  // Call each function repeatedly from loop until it returns true.
+  // Inflate() target defaults to last measured systolic, or 140 mmHg if no BP
+  // reading exists yet.
+  // ---------------------------------------------------------------------------
+  bool Inflate();
+  bool Inflate(float targetMmHg);
+  bool Hold(void (*updateHRV)() = nullptr);
+  bool Deflate();
 
-    void pumpForward();
-    void stopPump();
-
-    void valveOpen();
-    void valveClose();
+  BPReading lastReading() const;
+  unsigned long holdElapsedMs() const;
+  float holdStartPressureMmHg() const;
+  float holdEndPressureMmHg() const;
+  float holdPressureDropMmHg() const;
 
 private:
-    Adafruit_LPS35HW sensor;
-    float ambientPressure;
+  static const int MAX_POINTS = 1200;
 
-    float readPressure();
-    float getPressureMmHg();
+  // Oscillometric tuning from tested code
+  static constexpr float SBP_RATIO = 0.55f;
+  static constexpr float DBP_RATIO = 0.70f;
 
-    static const int MAX_POINTS = 1200;
+  static constexpr float BP_INFLATE_TARGET_MMHG = 185.0f;
+  static constexpr float BP_SAMPLE_HIGH_MMHG = 155.0f;
+  static constexpr float BP_SAMPLE_LOW_MMHG = 45.0f;
+  static constexpr float BP_STOP_DEFLATE_MMHG = 40.0f;
+  static constexpr float FULL_DEFLATE_DONE_MMHG = 5.0f;
+  static constexpr float HOLD_FALLBACK_TARGET_MMHG = 140.0f;
 
-    float pressureData[MAX_POINTS];
-    float oscData[MAX_POINTS];
-    int dataCount;
+  static constexpr unsigned long ZERO_DEFLATE_MS = 3000UL;
+  static constexpr unsigned long ZERO_SETTLE_MS = 500UL;
+  static constexpr unsigned long BP_SETTLE_MS = 1000UL;
+  static constexpr unsigned long PUMP_TIMEOUT_MS = 30000UL;
+  static constexpr unsigned long BP_DEFLATE_TIMEOUT_MS = 60000UL;
+  static constexpr unsigned long FULL_DEFLATE_TIMEOUT_MS = 30000UL;
+  static constexpr unsigned long HOLD_DURATION_MS = 10000UL;
+  static constexpr unsigned long BP_SAMPLE_PERIOD_MS = 10UL;
 
-    void resetBPData();
-    void savePoint(float pressure);
-    void calculateBP();
+  uint8_t _in1Pin;
+  uint8_t _in2Pin;
+  uint8_t _eepPin;
+  uint8_t _valvePin;
+  uint8_t _lpsCsPin;
 
-    const float SBP_RATIO = 0.55;
-    const float DBP_RATIO = 0.70;
+  Adafruit_LPS35HW sensor;
 
-    // Non-blocking 5-minute hold state
-    enum HoldState {
-        HOLD_IDLE,
-        HOLD_ZERO_DEFLATE,
-        HOLD_ZERO_SETTLE,
-        HOLD_INFLATE,
-        HOLD_ACTIVE,
-        HOLD_DEFLATE
-    };
+  BPCuffState state;
+  unsigned long stateStartMs;
+  unsigned long lastSampleMs;
+  float ambientPressure_hPa;
 
-    HoldState holdState;
+  float pressureData[MAX_POINTS];
+  float oscData[MAX_POINTS];
+  int dataCount;
 
-    unsigned long holdStateStart_ms;
-    unsigned long holdStart_ms;
+  BPReading result;
 
-    bool deflating;
+  float manualInflateTargetMmHg;
+  bool manualInflateStarted;
 
-    void startHold5();
-    void startDeflate();
-    void stopAll();
+  bool holdStarted;
+  unsigned long holdStartMs;
+  float holdStartPressure;
+  float holdEndPressure;
+
+  void resetBPData();
+  void savePoint(float pressureMmHg);
+  void startState(BPCuffState newState);
+  void failMeasurement();
+  bool calculateBP(BPReading &out);
 };
+
+#endif
