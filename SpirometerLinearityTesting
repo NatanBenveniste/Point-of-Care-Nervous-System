@@ -1,0 +1,72 @@
+import serial
+import matplotlib.pyplot as plt
+from collections import deque
+import statistics
+
+PORT = "COM8"
+BAUD = 115200
+
+ROLLING_WINDOW = 85   # 60 samples ≈ 3 seconds if Arduino delay is 50 ms
+
+ser = serial.Serial(PORT, BAUD, timeout=1)
+
+times = deque(maxlen=1000)
+raw_deltaP = deque(maxlen=1000)
+filtered_deltaP = deque(maxlen=1000)
+
+avg_window = deque(maxlen=ROLLING_WINDOW)
+
+plt.ion()
+fig, ax = plt.subplots()
+
+raw_line, = ax.plot([], [], label="Raw ΔP")
+filt_line, = ax.plot([], [], label="Averaged ΔP")
+
+ax.set_xlabel("Time [s]")
+ax.set_ylabel("Delta Pressure [Pa]")
+ax.set_title("Spirometer ΔP vs Time")
+ax.legend()
+ax.grid(True)
+
+while True:
+    try:
+        raw = ser.readline().decode("utf-8", errors="ignore").strip()
+
+        if not raw or raw.startswith("time_ms"):
+            continue
+
+        parts = raw.split(",")
+
+        if len(parts) != 5:
+            continue
+
+        time_s = float(parts[0]) / 1000.0
+        deltaP = float(parts[4])
+
+        avg_window.append(deltaP)
+
+        # Strong steady-flow filter
+        filtered = statistics.mean(avg_window)
+
+        times.append(time_s)
+        raw_deltaP.append(deltaP)
+        filtered_deltaP.append(filtered)
+
+        print(f"{time_s:.2f} s   raw = {deltaP:.2f} Pa   averaged = {filtered:.2f} Pa")
+
+        # raw_line.set_xdata(times)
+        # raw_line.set_ydata(raw_deltaP)
+
+        filt_line.set_xdata(times)
+        filt_line.set_ydata(filtered_deltaP)
+
+        ax.relim()
+        ax.autoscale_view()
+
+        plt.draw()
+        plt.pause(0.001)
+
+    except KeyboardInterrupt:
+        print("Stopped.")
+        ser.close()
+        break
