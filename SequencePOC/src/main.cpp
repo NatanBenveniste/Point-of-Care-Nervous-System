@@ -66,7 +66,8 @@ int breathCount = 0;
 int breathStopCount = 0;
 
 float flow_Lps = 0.0;
-float volume_L = 0.0;
+float volume_measured = 0.0;
+float volume_final = 0.0;
 
 float maxDeltaP_Pa = 0.0;
 
@@ -163,6 +164,28 @@ float calculateFlow_Lps(float deltaP_Pa) {
 }
 
 // ============================================================
+// VOLUME_FINAL CALCULATION
+// ============================================================
+//
+// Converts measured volume into final volume using the power regression.
+//
+// x = measured volume in L
+// V = final volume in L
+//
+// If the polynomial returns a negative volume, will be zero due to no y-intercept. 
+// ============================================================
+
+float calculateFinalVolume_L(float measuredVolume_L) {
+  float x = measuredVolume_L;
+
+  float volume_final =
+    0.885 * pow(x, 0.57);
+
+  return volume_final;
+}
+
+
+// ============================================================
 // SETUP
 // ============================================================
 
@@ -210,7 +233,7 @@ void loop() {
       breathStopCount = 0;
 
       flow_Lps = 0.0;
-      volume_L = 0.0;
+      volume_measured = 0.0;
       maxDeltaP_Pa = 0.0;
 
       breathStartTime_s = 0.0;
@@ -220,7 +243,7 @@ void loop() {
       lastIntegrationTime_us = startTime_us;
 
       Serial.println("START_DATA");
-      Serial.println("time_s,p1_abs_Pa,deltaP_Pa,filteredDeltaP_Pa,flow_Lps,volume_L,breathActive");
+      Serial.println("time_s,SmoothedDeltaP,flow_Lps,volume_final");
     } 
     else {
       collecting = false;
@@ -231,8 +254,8 @@ void loop() {
 
       Serial.println("STOP_COLLECTION");
 
-      Serial.print("FINAL_VOLUME_L,");
-      Serial.println(volume_L, 4);
+      Serial.print("FINAL_VOLUME,");
+      Serial.println(volume_final, 4);
 
       Serial.print("MAX_DELTA_P_PA,");
       Serial.println(maxDeltaP_Pa, 2);
@@ -319,8 +342,8 @@ void loop() {
 
       Serial.println("BREATH_END");
 
-      Serial.print("FINAL_VOLUME_L,");
-      Serial.println(volume_L, 4);
+      Serial.print("FINAL_VOLUME,");
+      Serial.println(volume_final, 4);
 
       Serial.print("BREATH_DURATION_S,");
       Serial.println(breathEndTime_s - breathStartTime_s, 4);
@@ -340,26 +363,30 @@ void loop() {
   //
   // Flow model:
   //
-  // Q = 0.367 + 0.149x - 1.03E-03x^2 + 4.34E-06x^3 - 6.63E-09x^4
+  // Q = 0.367 + 0.149x
   //
   // x is filtered pressure difference in Pa.
   // Q is flow in L/s.
   //
   // Volume integration:
   //
-  // volume += flow * dt
+  // volume_measured += flow * dt
+  //
+  // volume_final = 0.885 * volume_measured^0.57
   //
   // L/s * s = L
   // ------------------------------------------------------------
 
   if (breathActive) {
     if (smoothDeltaP_Pa > maxDeltaP_Pa) {
-      maxDeltaP_Pa = smoothDeltaP_Pa;
+      maxDeltaP_Pa = smoothDeltaP_Pa; // Storing max Delta P for the breath, which can be a useful metric on its own and also allows us to analyze how flow and volume relate to pressure across breaths.
     }
 
     flow_Lps = calculateFlow_Lps(smoothDeltaP_Pa);
 
-    volume_L += flow_Lps * dt_s;
+    volume_measured += flow_Lps * dt_s;
+
+    volume_final = calculateFinalVolume_L(volume_measured);
   } 
   else {
     flow_Lps = 0.0;
@@ -379,7 +406,7 @@ void loop() {
     Serial.print(",");
     Serial.print(flow_Lps, 4);
     Serial.print(",");
-    Serial.print(volume_L, 4);
+    Serial.print(volume_final, 4);
     Serial.println("");
   }
 
