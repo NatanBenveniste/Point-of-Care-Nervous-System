@@ -1,65 +1,101 @@
-#include <core.h>
-#include <motorhelper.h>
-#include <displaymanager.h>
-#include <heartrate.h>
+#include <Arduino.h>
+#include "webmanager.h"
 
-MotorControl control;
-DisplayManager screen;
-HeartRateMonitor hrm;
+WebManager web;
 
+float rstHR = 72.4;
+float rstHRV = 41.8;
 
-void setup() {
-  Serial.begin(115200);
-  delay(500);
-  Serial.println("serial");
+int SBP = 118;
+int DBP = 76;
 
-  coreInit();
-  hrm.init();
-  screen.init();
+float bpHR = 84.2;
+float bpHRV = 28.6;
+
+float spHR = 69.7;
+float spHRV = 52.3;
+float fvc = 3.42;
+
+void serviceSystem() {
+    web.tick();
 }
 
+void fakeProcedureDelay(unsigned long durationMs) {
+    unsigned long startTime = millis();
+
+    while (millis() - startTime < durationMs) {
+        serviceSystem();
+        delay(5);
+    }
+}
+
+void waitForSerialNext() {
+    Serial.println("Type n to continue.");
+
+    while (true) {
+        serviceSystem();
+
+        if (Serial.available()) {
+            char c = Serial.read();
+
+            if (c == 'n' || c == 'N') {
+                break;
+            }
+        }
+
+        delay(5);
+    }
+}
+
+void setup() {
+    Serial.begin(115200);
+    delay(1500);
+
+    Serial.println();
+    Serial.println("Starting fixed-sequence WebManager test...");
+
+    web.begin();
+
+    Serial.println("Connect to WiFi network: 67-Device");
+    Serial.println("Open browser to: http://192.168.4.1");
+
+    web.startScreen();
+    waitForSerialNext();
+
+    web.infoScreen();
+    waitForSerialNext();
+
+    web.baseHRVprog();
+    fakeProcedureDelay(5000);
+    web.baseHRVresults(rstHR, rstHRV);
+    waitForSerialNext();
+
+    web.BPprog();
+    fakeProcedureDelay(5000);
+    web.BPresults(SBP, DBP);
+    waitForSerialNext();
+
+    web.bpStimProg();
+    fakeProcedureDelay(5000);
+    web.bpStimResults(bpHR, bpHRV);
+    waitForSerialNext();
+
+    web.spStimProg();
+    fakeProcedureDelay(5000);
+    web.spStimResults(spHR, spHRV, fvc);
+    waitForSerialNext();
+
+    web.finalResults(
+        rstHR, rstHRV,
+        SBP, DBP,
+        bpHR, bpHRV,
+        spHR, spHRV,
+        fvc
+    );
+
+    Serial.println("Test sequence complete.");
+}
 
 void loop() {
-  Serial.println("starting");
-  // delay(2000);
-  // screen.startScreen();
-  // waitStart();
-  // screen.infoScreen();
-  // waitStart();
-  // screen.baseHRVprog();
-  // waitStart();
-  // screen.baseHRVresults(67, 67);
-  // waitStart();
-  // screen.BPprog();
-  // waitStart();
-  // screen.BPresults(120, 80);
-  // waitStart();
-  // screen.bpStimProg();
-  // waitStart();
-  // screen.bpStimResults(67, 67);
-  // waitStart();
-  // screen.spStimProg();
-  // waitStart();
-  // screen.spStimResults(67, 67, 0.67);
-  // waitStart();
-  // screen.finalResults(67, 67, 67, 67, 67, 67, 67, 67, 67);
-
-  Serial.println("before clear");
-  screen.display.clearBuffer();
-  Serial.println("after clearBuffer");
-
-  screen.display.setCursor(20, 20);
-  screen.display.setTextColor(EPD_BLACK);
-  screen.display.setTextSize(2);
-  screen.display.print("TEST");
-
-  Serial.println("before display");
-  screen.display.display();
-  Serial.println("after display");
-  
-  
-  while(1) {
-    Serial.println("done");
-    delay(10000);
-  }
+    web.tick();
 }

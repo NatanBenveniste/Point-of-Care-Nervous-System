@@ -1,3 +1,5 @@
+#pragma once
+
 #include <Arduino.h>
 #include <math.h>
 #include <vector>
@@ -9,8 +11,6 @@
 #include <limits>
 #include <set>
 #include <cstdint>
-
-
 
 // define pins
 #define leadOffPlus 21
