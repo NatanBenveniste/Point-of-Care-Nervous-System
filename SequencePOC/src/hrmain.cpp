@@ -1,0 +1,83 @@
+#include <Arduino.h>
+#include <heartrate.h>
+
+#define BUTTON_PIN 2
+
+HeartRateMonitor hrm;
+void waitForButtonPress() {
+    while (digitalRead(BUTTON_PIN) == HIGH) {
+        delay(10);
+    }
+    while (digitalRead(BUTTON_PIN) == LOW) {
+        delay(10);
+    }
+}
+
+void printResults(const char* label) {
+    Serial.print(label);
+    Serial.print(" HR: ");
+    Serial.print(hrm.hr);
+    Serial.print(" BPM | RMSSD: ");
+    Serial.print(hrm.rmssd);
+    Serial.println(" ms");
+}
+
+void runHRPhase(int seconds) {
+    uint32_t sampleCount = 0;
+    hrm.beginMeasurement(seconds);
+
+    while (hrm.collecting) {
+        hrm.updateRaw();
+        sampleCount++;
+
+        // other sensors piggyback here
+        // if (sampleCount % 3 == 0) { pressure sensor at 75Hz }
+
+        if (hrm.windowElapsed()) {
+            hrm.ptProcess();
+            hrm.clearVecs();
+            hrm.windowCount++;
+
+            if (hrm.windowCount >= hrm.targetWindows) {
+                auto [h, r] = hrm.hrStats(hrm.rrIntervals);
+                hrm.hr = h;
+                hrm.rmssd = r;
+                hrm.collecting = false;
+            } else {
+                hrm.windowStart = micros();
+            }
+        }
+    }
+}
+
+void setup() {
+  Serial.begin(115200);
+pinMode(BUTTON_PIN, INPUT);
+hrm.init();
+Serial.println("Press the button to start collecting ECG data.");
+}
+
+void loop() {
+  // baseline collection
+  waitForButtonPress();
+  Serial.println("Collecting baseline ECG data...");
+  runHRPhase(60); // collect for 60 seconds
+  printResults("Baseline");
+
+  //BP Cuff Measurement
+  waitForButtonPress();
+  Serial.println("Press button to start BP cuff.");
+  Serial.println("Starting BP Cuff...");
+  runHRPhase(300); // collect for 120 seconds (includes inflation and deflation)
+  printResults("BP Cuff");
+
+  // Spirometer Measurement
+  waitForButtonPress();
+  Serial.println("Press button to start Spirometer.");
+  Serial.println("Starting Spirometer...");
+  runHRPhase(60);
+  printResults("Spirometer");
+  
+  Serial.println("All measurements complete.");
+  while (1) delay(5000);
+}
