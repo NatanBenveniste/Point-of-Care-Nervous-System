@@ -20,7 +20,7 @@
 // - printing the final 1-minute result
 // ============================================================
 
-const unsigned long TEST_DURATION_MS = 60000;
+const unsigned long TEST_DURATION_MS = 20000;
 
 // ============================================================
 // TEST STATE VARIABLES
@@ -97,5 +97,6 @@ void loop() {
 
     Serial.print("TOTAL_BREATHS,");
     Serial.println(spirometerGetBreathCount());
+    }
+
   }
-}

@@ -82,7 +82,7 @@ const int BREATH_START_COUNT_THRESHOLD = 3;
 
 // Stop
 const float DP_STOP_THRESHOLD_PA = 2.0;
-const int BREATH_STOP_COUNT_THRESHOLD = 4;
+const int BREATH_STOP_COUNT_THRESHOLD = 3;
 
 // ------------------------------------------------------------
 // Filtering
@@ -160,7 +160,8 @@ float breathEndTime_s = 0.0;
 // ============================================================
 
 float readUpstreamPa() {
-  return upstreamSensor.readPressure() * 100.0;
+  float p_Pa = upstreamSensor.readPressure() * 100.0;
+  return p_Pa;
 }
 
 // ============================================================
@@ -182,7 +183,6 @@ void calibrateZero() {
 
   for (int i = 0; i < ZERO_SAMPLES; i++) {
     float upstream_Pa = readUpstreamPa();
-
     sumP += upstream_Pa;
 
     delay(ZERO_DELAY_MS);
@@ -324,6 +324,10 @@ void spirometerBegin() {
   // Enables the low pass filter with ODR/9 bandwidth.
   // We are already filtering in software with filterDeltaP() as well. 
   upstreamSensor.enableLowPass(false);
+
+  // Let sensor output settle after initialization/configuration.
+  // This happens before testing, so it does not affect sampling rate.
+  delay(3000);
 
   // Zero pressure sensor to atmosphere
   calibrateZero();
@@ -467,8 +471,6 @@ void spirometerUpdate() {
   // ------------------------------------------------------------
 
   float smoothDeltaP_Pa = filterDeltaP(rawDeltaP_Pa);
-  Serial.print("RAW_DP,");
-  Serial.println(rawDeltaP_Pa, 2);
 
   // ------------------------------------------------------------
   // BREATH START DETECTION
