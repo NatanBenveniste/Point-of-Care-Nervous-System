@@ -100,24 +100,6 @@ const int BREATH_STOP_COUNT_THRESHOLD = 4;
 const float EMA_ALPHA = 0.25;
 const float MAX_DELTA_STEP_PA = 8.0;  // This is in Pascals. Adjust based on sensors noise and expected pressure changes during breathing.
 
-// ------------------------------------------------------------
-// Linear flow model
-// ------------------------------------------------------------
-//
-// This uses your linear regression relationship:
-//
-// Q = K * deltaP
-//
-// Q is flow in L/s.
-// deltaP is pressure difference in Pa.
-// K_LINEAR has units of:
-//
-// L/s/Pa
-//
-// Replace K_LINEAR with calibrated regression value.
-// ------------------------------------------------------------
-
-float K_LINEAR = 0.09;
 
 // ============================================================
 // STATE VARIABLES
@@ -144,7 +126,12 @@ int breathStopCount = 0;
 
 // Current breath values
 float flow_Lps = 0.0;
-float volume_L = 0.0;
+float volume_measured = 0.0;
+float volume_final = 0.0;
+
+// Constant values for Sqrt Functon
+const float C0 = -0.7576;
+const float C1 = 0.634;
 
 // 1-minute test averaging values
 float totalBreathVolume_L = 0.0;
@@ -202,6 +189,8 @@ void calibrateZero() {
   }
 
   patm_Pa = sumP / ZERO_SAMPLES;
+  Serial.print("ZERO_PATM_PA,");
+  Serial.println(patm_Pa, 2);
 
   // Reset breath detection state after zeroing
   breathActive = false;
@@ -259,6 +248,54 @@ float filterDeltaP(float rawDeltaP_Pa) {
 }
 
 // ============================================================
+// FLOW CALCULATION
+// ============================================================
+//
+// Converts filtered deltaP into flow using the polynomial regression.
+//
+// x = filtered deltaP in Pa
+// Q = flow in L/s
+//
+// If the polynomial returns a negative flow, clamp it to zero.
+// This prevents bad values near zero pressure from subtracting volume.
+// ============================================================
+
+float calculateFlow_Lps(float deltaP_Pa) {
+  float x = deltaP_Pa;
+
+  float flow =
+    C0 +
+    C1 * sqrt(x);
+  
+  if (flow < 0.0) {
+    flow = 0.0;
+  }
+
+  return flow;
+}
+
+// ============================================================
+// VOLUME_FINAL CALCULATION
+// ============================================================
+//
+// Converts measured volume into final volume using the power regression.
+//
+// x = measured volume in L
+// V = final volume in L
+//
+// If the polynomial returns a negative volume, will be zero due to no y-intercept. 
+// ============================================================
+
+float calculateFinalVolume_L(float measuredVolume_L) {
+  float x = measuredVolume_L;
+
+  float volume_final =
+    0.885 * pow(x, 0.57);
+
+  return volume_final;
+}
+
+// ============================================================
 // SPIROMETER BEGIN
 // ============================================================
 //
@@ -290,6 +327,10 @@ void spirometerBegin() {
 
   // Zero pressure sensor to atmosphere
   calibrateZero();
+  Serial.println("SPIROMETER_ZERORED");
+  Serial.print("ATMOSPHERIC_ZERO_PA,");
+  Serial.println(patm_Pa, 2);
+
 
   // Initialize timing
   startTime_us = micros();
@@ -317,7 +358,7 @@ void spirometerResetTest() {
 
   // Reset current breath values
   flow_Lps = 0.0;
-  volume_L = 0.0;
+  volume_measured = 0.0;
 
   // Reset test averaging values
   totalBreathVolume_L = 0.0;
@@ -426,6 +467,8 @@ void spirometerUpdate() {
   // ------------------------------------------------------------
 
   float smoothDeltaP_Pa = filterDeltaP(rawDeltaP_Pa);
+  Serial.print("RAW_DP,");
+  Serial.println(rawDeltaP_Pa, 2);
 
   // ------------------------------------------------------------
   // BREATH START DETECTION
@@ -444,6 +487,7 @@ void spirometerUpdate() {
     }
 
     if (breathCount >= BREATH_START_COUNT_THRESHOLD) {
+      Serial.println("BREATH_START");
       breathActive = true;
       breathStopCount = 0;
 
@@ -451,12 +495,14 @@ void spirometerUpdate() {
       // This prevents the first volume step from including time
       // before the breath started.
       lastIntegrationTime_us = now_us;
+      dt_s = 0.0;
 
       breathStartTime_s = time_s;
       maxDeltaP_Pa = 0.0;
 
       // Reset current breath volume at the start of each breath.
-      volume_L = 0.0;
+      volume_measured = 0.0;
+      volume_final = 0.0;
     }
   }
 
@@ -487,12 +533,19 @@ void spirometerUpdate() {
 
       breathEndTime_s = time_s;
 
+      // Power model for final volume relation from measured volume
+      volume_final = calculateFinalVolume_L(volume_measured);
+      
+      Serial.print("BREATH_VOLUME_L,");
+      Serial.println(volume_final, 3);
+
       // Store completed breath volume for test average
-      totalBreathVolume_L += volume_L;
+      totalBreathVolume_L += volume_final;
       completedBreathCount++;
 
       // Reset current breath volume so the next breath starts clean
-      volume_L = 0.0;
+      volume_measured = 0.0;
+      volume_final = 0.0;
 
       return;
     }
@@ -519,13 +572,16 @@ void spirometerUpdate() {
 
   if (breathActive) {
     if (smoothDeltaP_Pa > maxDeltaP_Pa) {
-      maxDeltaP_Pa = smoothDeltaP_Pa;
+      maxDeltaP_Pa = smoothDeltaP_Pa; //storing max deltaP for each breath for debugging and calibration purposes
     }
 
-    flow_Lps = K_LINEAR * smoothDeltaP_Pa;
+    // Sqrt model for flow relation from pressure
+    flow_Lps = calculateFlow_Lps(smoothDeltaP_Pa);
+    
+    volume_measured += flow_Lps * dt_s;
 
-    volume_L += flow_Lps * dt_s;
   } 
+
   else {
     flow_Lps = 0.0;
   }
