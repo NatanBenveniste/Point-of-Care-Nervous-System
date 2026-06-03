@@ -6,11 +6,15 @@ CuffControl control;
 void setup() {
   Serial.begin(115200);
   delay(1000);
+
   Serial.println("serial");
 
   control.setupHardware();
 }
 
 void loop() {
-  control.serialControl();
+  
+  // Non-blocking functions keep updating here
+  control.bpInflate5Min();
+  control.bpDeflate();
 }

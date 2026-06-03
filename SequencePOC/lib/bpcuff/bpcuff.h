@@ -1,15 +1,18 @@
 #pragma once
 
 #include <Arduino.h>
+#include <SPI.h>
 #include <Adafruit_LPS35HW.h>
 
-// define control pins
+// Motor driver pins
 #define IN1 3
 #define IN2 2
 #define EEP 4
+
+// Valve pin
 #define VALVE 1
 
-// define sensor pins SPI
+// LPS35HW SPI pins
 #define LPS_CS   5
 #define LPS_SCK  28
 #define LPS_MISO 16
@@ -20,18 +23,22 @@ public:
     CuffControl();
 
     void setupHardware();
+    void serialControl();
+
+    // 1) Blocking BP measurement
+    void bpUpdate();
+
+    // 2) Non-blocking 5-minute inflation/hold
+    void bpInflate5Min();
+
+    // 3) Non-blocking full deflation
+    void bpDeflate();
 
     void pumpForward();
     void stopPump();
 
     void valveOpen();
     void valveClose();
-
-    void serialControl();
-
-    void runBPMeasurement();
-    void runFiveMinuteHold();
-    void fullDeflate();
 
 private:
     Adafruit_LPS35HW sensor;
@@ -52,4 +59,25 @@ private:
 
     const float SBP_RATIO = 0.55;
     const float DBP_RATIO = 0.70;
+
+    // Non-blocking 5-minute hold state
+    enum HoldState {
+        HOLD_IDLE,
+        HOLD_ZERO_DEFLATE,
+        HOLD_ZERO_SETTLE,
+        HOLD_INFLATE,
+        HOLD_ACTIVE,
+        HOLD_DEFLATE
+    };
+
+    HoldState holdState;
+
+    unsigned long holdStateStart_ms;
+    unsigned long holdStart_ms;
+
+    bool deflating;
+
+    void startHold5();
+    void startDeflate();
+    void stopAll();
 };
