@@ -24,7 +24,8 @@
 class DisplayManager {
 public:
     DisplayManager();
-    ThinkInk_370_Tricolor_BABMFGNR display;
+    // ThinkInk_370_Tricolor_BABMFGNR display;
+    ThinkInk_420_Grayscale4_MFGN display;
 
     void init();
 

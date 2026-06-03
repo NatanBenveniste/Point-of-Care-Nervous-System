@@ -12,10 +12,11 @@ void DisplayManager::init() {
 
     delay(100);
 
-    // Serial.print("Busy pin state: "); 
-    // Serial.println(digitalRead(EPD_BUSY));
+    Serial.print("Busy pin state: "); 
+    Serial.println(digitalRead(EPD_BUSY));
 
-    display.begin(THINKINK_TRICOLOR);
+    // display.begin(THINKINK_TRICOLOR);
+    display.begin(THINKINK_MONO);
     display.setRotation(0); // 0 for flat, 2 for in device
     display.setTextColor(EPD_BLACK);
     Serial.println("Display begin done");
