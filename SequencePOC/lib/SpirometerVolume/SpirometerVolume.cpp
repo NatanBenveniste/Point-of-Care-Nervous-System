@@ -148,6 +148,14 @@ unsigned long lastIntegrationTime_us = 0;
 float breathStartTime_s = 0.0;
 float breathEndTime_s = 0.0;
 
+// 1 minute test timing
+const unsigned long SPIROMETER_TEST_DURATION_MS = 60000UL;
+
+bool spirometerTestRunning = false;
+bool spirometerTestDone = false;
+
+unsigned long spirometerTestStart_ms = 0;
+
 // ============================================================
 // READ PRESSURE
 // ============================================================
@@ -624,4 +632,61 @@ float spirometerGetAverageBreathVolume_L() {
 
 int spirometerGetBreathCount() {
   return completedBreathCount;
+}
+
+// ============================================================
+// START SPIROMETER 1-MINUTE TEST
+// ============================================================
+//
+// Starts a new 1-minute spirometer test.
+// The timer is owned by spirometer.cpp, not main.cpp.
+// ============================================================
+
+void spirometerStartTest() {
+  spirometerResetTest();
+
+  spirometerTestRunning = true;
+  spirometerTestDone = false;
+  spirometerTestStart_ms = millis();
+
+  Serial.println("SPIROMETER_TEST_START");
+}
+
+
+// ============================================================
+// RUN SPIROMETER 1-MINUTE TEST
+// ============================================================
+//
+// main.cpp calls this repeatedly while in STATE_SPIROMETER_HOLD.
+//
+// Returns:
+// false = still running
+// true  = 1-minute test finished
+// ============================================================
+
+bool spirometerRunTest() {
+  if (!spirometerTestRunning) {
+    return spirometerTestDone;
+  }
+
+  // Keep sampling while the test is active
+  spirometerUpdate();
+
+  // Check 1-minute timer
+  if (millis() - spirometerTestStart_ms >= SPIROMETER_TEST_DURATION_MS) {
+    spirometerTestRunning = false;
+    spirometerTestDone = true;
+
+    Serial.println("SPIROMETER_TEST_DONE");
+
+    Serial.print("FINAL_AVERAGE_BREATH_VOLUME_L,");
+    Serial.println(spirometerGetAverageBreathVolume_L(), 4);
+
+    Serial.print("TOTAL_BREATHS,");
+    Serial.println(spirometerGetBreathCount());
+
+    return true;
+  }
+
+  return false;
 }

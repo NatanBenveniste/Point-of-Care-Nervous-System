@@ -32,3 +32,8 @@ float spirometerGetAverageBreathVolume_L();
 
 // Returns number of completed breaths detected during the test.
 int spirometerGetBreathCount();
+
+// Starts a new 1-minute spirometer test.
+void spirometerStartTest();
+// Returns true if the 1-minute test is done, false if still running.
+bool spirometerRunTest();

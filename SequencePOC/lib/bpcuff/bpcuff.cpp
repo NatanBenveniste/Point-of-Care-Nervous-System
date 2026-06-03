@@ -27,6 +27,7 @@ CuffControl::CuffControl(uint8_t in1Pin,
   stateStartMs = 0;
   lastSampleMs = 0;
   holdStartMs = 0;
+  lastSampleTime = 0; // Sampling frequency limiter for pressure readings
 
   ambientPressure_hPa = 0.0f;
 
@@ -102,12 +103,19 @@ void CuffControl::valveClose() {
 // PRESSURE
 // ============================================================
 
-float CuffControl::readPressure_hPa() {
-  return sensor.readPressure();
+void CuffControl::readPressure_hPa() {
+
+  uint32_t currentTime = micros();
+  if (currentTime - lastSampleTime < 13000) // limit to ~75 Hz
+      return;
+  lastSampleTime = currentTime;
+  
+  pressure_hPa = sensor.readPressure();
 }
 
 float CuffControl::getPressureMmHg() {
-  float currentPressure_hPa = readPressure_hPa();
+  readPressure_hPa();
+  float currentPressure_hPa = pressure_hPa;
   float gauge_hPa = currentPressure_hPa - ambientPressure_hPa;
   float gauge_mmHg = gauge_hPa * 0.750062f;
 
@@ -115,7 +123,8 @@ float CuffControl::getPressureMmHg() {
 }
 
 void CuffControl::zeroAmbientNow() {
-  ambientPressure_hPa = readPressure_hPa();
+  readPressure_hPa();
+  ambientPressure_hPa = pressure_hPa;
 }
 
 // ============================================================
@@ -421,9 +430,7 @@ bool CuffControl::Hold(void (*updateHRV)()) {
   stopPump();
   valveClose();
 
-  if (updateHRV != nullptr) {
-    updateHRV();
-  }
+  updateHRV();
 
   holdEndPressure = getPressureMmHg();
 

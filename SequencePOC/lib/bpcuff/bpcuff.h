@@ -74,11 +74,14 @@ public:
   bool bpCuffBegin();
 
   // Immediate hardware helpers
+  float pressure_hPa = 0.0f;
+  
+
   void pumpForward();
   void stopPump();
   void valveOpen();
   void valveClose();
-  float readPressure_hPa();
+  void readPressure_hPa();
   float getPressureMmHg();
   void zeroAmbientNow();
 
@@ -146,6 +149,8 @@ private:
   unsigned long stateStartMs;
   unsigned long lastSampleMs;
   float ambientPressure_hPa;
+
+  unsigned long lastSampleTime; // For limiting pressure sampling frequency
 
   float pressureData[MAX_POINTS];
   float oscData[MAX_POINTS];

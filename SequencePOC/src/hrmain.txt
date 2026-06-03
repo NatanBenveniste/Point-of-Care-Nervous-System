@@ -50,6 +50,27 @@ void runHRPhase(int seconds) {
     }
 }
 
+void updateHRV() {
+    
+    hrm.startCollecting();
+    hrm.updateRaw();
+
+    if (hrm.windowElapsed()) {
+        hrm.ptProcess();
+        hrm.clearVecs();
+        hrm.windowCount++;
+
+        if (hrm.windowCount >= 2.0) {
+            auto [h, r] = hrm.hrStats(hrm.rrIntervals);
+            hrm.hr = h;
+            hrm.rmssd = r;
+            hrm.collecting = false;
+        } else {
+            hrm.windowStart = micros();
+        }
+     }
+}
+
 void setup() {
   Serial.begin(115200);
 pinMode(BUTTON_PIN, INPUT);

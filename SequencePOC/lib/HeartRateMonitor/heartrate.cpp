@@ -45,12 +45,13 @@ void HeartRateMonitor::startCollecting() {
         return;
     collecting = true;
     startTime = micros();
+    windowCount = 0;
 }
 
 // add instantantaneous ecg reading to current raw signal vector
 void HeartRateMonitor::updateRaw() {
-    if(!collecting)
-        return;
+    // if(!collecting)
+    //     return;
 
     uint32_t currentTime = micros();
     if (currentTime - lastSampleTime < 4000) // limit to ~250 Hz
@@ -648,13 +649,15 @@ void HeartRateMonitor::buildRR(const ECG& ptECG, const std::vector<int32_t>& pea
     Serial.println();
 }
 
-std::pair<float, float> HeartRateMonitor::hrStats(const std::vector<float>& filtered_rr_ms) {
+void HeartRateMonitor::hrStats(const std::vector<float>& filtered_rr_ms) {
     if (filtered_rr_ms.size() < 3) {  // calculate hr + hrv
-        return {0.0f, 0.0f};
+        hr = 0.0f;
+        rmssd = 0.0f;
+        return;
     }
     
-    float hr = 0.0f;
-    float rmssd = 0.0f;
+    hr = 0.0f;
+    rmssd = 0.0f;
 
     // HR
     float sum = std::accumulate(filtered_rr_ms.begin(), filtered_rr_ms.end(), 0.0f);
@@ -669,8 +672,9 @@ std::pair<float, float> HeartRateMonitor::hrStats(const std::vector<float>& filt
     }
     rmssd = std::sqrt(sq_sum / (filtered_rr_ms.size() - 1));
 
-    return {hr, rmssd};
-}
+    std::vector<float>().swap(rrIntervals); // clear RR intervals for next window
+
+ }
 
 
 // returns all results to class variables e.g. hrm.rmssd

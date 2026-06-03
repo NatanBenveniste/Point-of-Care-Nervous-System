@@ -68,7 +68,7 @@ public:
     ECG panTompkins(const ECG& ecg);
     
     std::vector<int32_t> detectPeaks(const ECG& ptECG, const ECG& bpECG);
-    std::pair<float, float> hrStats(const std::vector<float>& filtered_rr_ms);
+    void hrStats(const std::vector<float>& filtered_rr_ms);
 
 
     void ptProcess();
