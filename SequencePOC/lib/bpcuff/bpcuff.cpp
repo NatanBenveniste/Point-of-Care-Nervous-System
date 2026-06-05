@@ -409,7 +409,7 @@ bool CuffControl::Inflate(float targetMmHg) {
 // Done after 5 minutes.
 // ============================================================
 
-bool CuffControl::Hold(void (*updateHRV)()) {
+bool CuffControl::Hold(void (*updateHRV)()) { 
   unsigned long now = millis();
 
   // First call starts hold

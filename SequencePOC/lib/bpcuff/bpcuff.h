@@ -134,7 +134,7 @@ private:
   static constexpr unsigned long PUMP_TIMEOUT_MS = 30000UL;
   static constexpr unsigned long BP_DEFLATE_TIMEOUT_MS = 60000UL;
   static constexpr unsigned long FULL_DEFLATE_TIMEOUT_MS = 30000UL;
-  static constexpr unsigned long HOLD_DURATION_MS = 10000UL;
+  static constexpr unsigned long HOLD_DURATION_MS = 65000UL;
   static constexpr unsigned long BP_SAMPLE_PERIOD_MS = 10UL;
 
   uint8_t _in1Pin;

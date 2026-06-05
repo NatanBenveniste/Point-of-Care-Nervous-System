@@ -149,7 +149,7 @@ float breathStartTime_s = 0.0;
 float breathEndTime_s = 0.0;
 
 // 1 minute test timing
-const unsigned long SPIROMETER_TEST_DURATION_MS = 60000UL;
+const unsigned long SPIROMETER_TEST_DURATION_MS = 65000UL;
 
 bool spirometerTestRunning = false;
 bool spirometerTestDone = false;

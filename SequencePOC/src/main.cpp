@@ -4,6 +4,7 @@
 #include "SpirometerVolume.h"
 
 #define BUTTON_PIN 27
+#define STOP_BUTTON_PIN 20
 
 // Store measured BP values
 float systolic_mmHg = 0.0;
@@ -30,6 +31,7 @@ HeartRateMonitor hrm;
 // Main system states
 // ------------------------------------------------------------
 enum SystemState {
+  STATE_SYSTEM_START,
   STATE_GET_BASELINE_HRV,
   STATE_GET_BP,
   STATE_INFLATE,
@@ -40,7 +42,7 @@ enum SystemState {
   STATE_ERROR
 };
 
-SystemState state = STATE_GET_BASELINE_HRV;
+SystemState state = STATE_SYSTEM_START;
 
 
 // ============================================================
@@ -70,27 +72,29 @@ void printResults(const char* label) {
 
 // ============================================================
 // MAIN HRV UPDATE FUNCTION
-// Passed into Hold() phase
+// Passed into other phases to update HRV during cuff hold and spirometer hold.
 // ============================================================
 
 void updateHRV() {
-  hrm.startCollecting();
-  hrm.updateRaw();
-
-  if (hrm.windowElapsed()) {
-    hrm.ptProcess();
-    hrm.clearVecs();
-    hrm.windowCount++;
-
-    if (hrm.windowCount >= 2.0) {
-      hrm.hrStats(hrm.rrIntervals);
-
-      hrm.collecting = false;
-    } 
-    else {
-      hrm.windowStart = micros();
+    if (!hrm.collecting) {
+        return;
     }
-  }
+
+    hrm.updateRaw();  
+
+    if (hrm.windowElapsed()) {
+        hrm.ptProcess();
+        hrm.clearVecs();
+        hrm.windowCount++;
+
+        if (hrm.windowCount >= hrm.targetWindows) {
+            hrm.hrStats(hrm.rrIntervals);
+            hrm.collecting = false;
+        } 
+        else {
+            hrm.windowStart = micros();
+        }
+    }
 }
 
 
@@ -120,6 +124,30 @@ bool buttonPressed() {
   return false;
 }
 
+bool stopButtonPressed() {
+  return digitalRead(STOP_BUTTON_PIN) == LOW;
+}
+
+void emergencyStopReset() {
+  Serial.println("EMERGENCY_STOP");
+
+  // Safety actions first
+  bpCuff.stopPump();
+  bpCuff.valveOpen();     // deflate cuff
+
+  // Stop/reset active measurements
+  spirometerResetTest();
+
+  // If  HRV library has a reset/stop function, call it here
+
+  // Reset state machine flags
+  stateDone = false;
+
+  // Return to first state
+  state = STATE_SYSTEM_START;
+
+  Serial.println("STATE_SYSTEM_START");
+}
 
 // ============================================================
 // STATE ADVANCE HELPER
@@ -131,28 +159,36 @@ void goToNextState() {
 
   switch (state) {
 
+    case STATE_SYSTEM_START:
+      state = STATE_GET_BASELINE_HRV;
+
+      hrm.beginMeasurement(60);
+
+      Serial.println("STATE_GET_BASELINE_HRV");
+      break;
+
     case STATE_GET_BASELINE_HRV:
       state = STATE_GET_BP;
-
-      hrm.startCollecting();
 
       Serial.println("STATE_GET_BP");
       break;
 
     case STATE_GET_BP:
       state = STATE_INFLATE;
+
       Serial.println("STATE_INFLATE");
       break;
 
     case STATE_INFLATE:
       state = STATE_HOLD;
+
+      hrm.beginMeasurement(60);
+
       Serial.println("STATE_HOLD");
       break;
 
     case STATE_HOLD:
       state = STATE_DEFLATE;
-
-      hrm.startCollecting();
 
       Serial.println("STATE_DEFLATE");
       break;
@@ -162,7 +198,7 @@ void goToNextState() {
 
       // Start 1-minute spirometer test when entering this state
       spirometerStartTest();
-      hrm.startCollecting();
+      hrm.beginMeasurement(60);
 
       Serial.println("STATE_SPIROMETER_HOLD");
       break;
@@ -187,6 +223,7 @@ void setup() {
 
   // Internal pullup: HIGH = not pressed, LOW = pressed
   pinMode(BUTTON_PIN, INPUT_PULLUP);
+  pinMode(STOP_BUTTON_PIN, INPUT_PULLUP);
   
   hrm.init(); // TODO: bool with error 
   bool cuffOK = bpCuff.bpCuffBegin();
@@ -213,6 +250,14 @@ void setup() {
 
 void loop() {
 
+  // ============================================================
+  // EMERGENCY STOP BUTTON CHECK
+  // ============================================================
+  if (stopButtonPressed()) {
+    emergencyStopReset();
+    return;   // prevents the normal state machine from running this loop
+  }
+
   bool pressed = buttonPressed();
 
   // Advance only when current state has finished
@@ -221,6 +266,17 @@ void loop() {
   }
 
   switch (state) {
+
+    // ============================================================
+    // SYSTEM START
+    // ============================================================
+    case STATE_SYSTEM_START: {
+      
+      if (buttonPressed()) {
+        goToNextState();
+      }
+      break;
+    }
 
     // ============================================================
     // 1. HRV BASELINE

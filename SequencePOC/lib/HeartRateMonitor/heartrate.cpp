@@ -43,23 +43,27 @@ float HeartRateMonitor::readECG() const {
 void HeartRateMonitor::startCollecting() {
     if (collecting)
         return;
-    collecting = true;
+
+    collecting = true; //Indicates that we are now collecting data
     startTime = micros();
-    windowCount = 0;
+    lastSampleTime = 0; // Allows update raw to collect immediately after startCollecting without waiting for 4ms
 }
 
 // add instantantaneous ecg reading to current raw signal vector
 void HeartRateMonitor::updateRaw() {
-    // if(!collecting)
-    //     return;
+    if(!collecting)
+        return;
 
     uint32_t currentTime = micros();
+
     if (currentTime - lastSampleTime < 4000) // limit to ~250 Hz
         return;
-    lastSampleTime = currentTime;
+
+    lastSampleTime = currentTime; 
     
     float t = (currentTime - startTime) / 1000000.0f;
     float v = readECG();
+
     rawECG.t.push_back(t);
     rawECG.val.push_back(v);
 }
@@ -699,13 +703,32 @@ void HeartRateMonitor::beginMeasurement(int seconds) {
     rrIntervals.clear();
     leadsOffCount = 0;
     removedRRCount = 0;
+    removedIntervals.clear();
+
+    hr = 0.0f;
+    rmssd = 0.0f;
+
     windowCount = 0;
     targetWindows = seconds / 30;
-    windowStart = micros();
+
+    if (targetWindows < 1) {
+        targetWindows = 1;
+    }
+
+    startTime = micros();
+    windowStart = startTime;
+    lastSampleTime = 0; 
+
     clearVecs();
-    startCollecting();
+
+    collecting = true;
 }
 
 bool HeartRateMonitor::windowElapsed() {
+     if (!collecting) {
+        return false;
+    }
+
     return (micros() - windowStart) >= 30000000UL;
 }
+
