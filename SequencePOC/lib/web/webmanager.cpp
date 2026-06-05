@@ -80,7 +80,8 @@ void WebManager::infoScreen() {
 
     pageMessage =
         "<div class='left readable'>"
-        "<p>This device measures heart rate variability (HRV) and its reaction to sympathetic and parasympathetic stimuli.</p>"
+        "<p>This device measures heart rate variability (HRV) and its reaction to sympathetic and parasympathetic stimuli " 
+        "using a blood pressure cuff and a spirometer.</p>"
         "<p>The examination consists of four procedures:</p>"
         "<ol>"
         "<li>Resting HRV measurement</li>"
@@ -88,6 +89,8 @@ void WebManager::infoScreen() {
         "<li>Cuff constricted HRV measurement</li>"
         "<li>Deep breathing HRV measurement</li>"
         "</ol>"
+        "<p>Please position the chest strap securely against your skin beneath your pectoral muscles. During the exam, "
+        "please remain seated and avoid movements that may distort the results.</p>"
         "<p class='prompt'>Press START to begin resting HRV measurement.</p>"
         "<p class='smallPrompt'>Press STOP during any procedure to stop the exam.</p>"
         "</div>";
@@ -102,7 +105,9 @@ void WebManager::baseHRVprog() {
         "<div class='center readable'>"
         "<h1>Measuring Resting HRV</h1>"
         "<div class='ellipsis'>. . .</div>"
-        "<p>Press STOP at any time to stop.</p>"
+        "<p class='instruction'>Please remain seated, relaxed, and still while resting HRV is measured.</p>"
+        "<p class='instruction'>Avoid moving the chest strap or changing posture during this procedure.</p>"
+        "<p class='smallPrompt'>Press STOP at any time to stop.</p>"
         "</div>";
 
     procedureStatus = "Measuring resting HRV";
@@ -128,7 +133,9 @@ void WebManager::BPprog() {
         "<div class='center readable'>"
         "<h1>Measuring Blood Pressure</h1>"
         "<div class='ellipsis'>. . .</div>"
-        "<p>Press STOP at any time to stop.</p>"
+        "<p class='instruction'>Please keep your arm still and relaxed while the cuff inflates and deflates.</p>"
+        "<p class='instruction'>Remain seated and avoid moving during the measurement.</p>"
+        "<p class='smallPrompt'>Press STOP at any time to stop.</p>"
         "</div>";
 
     procedureStatus = "Measuring blood pressure";
@@ -153,7 +160,10 @@ void WebManager::bpStimProg() {
         "<div class='center readable'>"
         "<h1>Measuring HRV</h1>"
         "<p class='subhead'>(With Cuff Stimulus)</p>"
-        "<p class='prompt'>Press STOP at any time to stop.</p>"
+        "<div class='ellipsis'>. . .</div>"
+        "<p class='instruction'>Please remain seated and still while HRV is measured with the cuff stimulus.</p>"
+        "<p class='instruction'>Keep your arm relaxed and avoid movements that may distort the results.</p>"
+        "<p class='smallPrompt'>Press STOP at any time to stop.</p>"
         "</div>";
 
     procedureStatus = "Measuring HRV with cuff stimulus";
@@ -167,6 +177,7 @@ void WebManager::bpStimResults(const float hr, const float rmssd) {
         "<p><strong>Cuff Stim. Heart Rate (BPM):</strong> " + String(hr, 1) + "</p>"
         "<p><strong>Cuff Stim. HRV (RMSSD, ms):</strong> " + String(rmssd, 1) + "</p>"
         "<p class='prompt'>Press START to continue to HRV measurement with deep breathing stimulus.</p>"
+        "<p>Reorient the device to position the spirometer mouthpiece towards you.</p>"
         "</div>";
 
     procedureStatus = "Cuff stimulus HRV complete";
@@ -179,7 +190,11 @@ void WebManager::spStimProg() {
         "<div class='center readable'>"
         "<h1>Measuring HRV</h1>"
         "<p class='subhead'>(With Breathing Stimulus)</p>"
-        "<p class='prompt'>Press STOP at any time to stop.</p>"
+        "<div class='ellipsis'>. . .</div>"
+        "<p class='instruction'>Please remain seated and take deep, even breaths into the spirometer. Do not inhale "
+        "back through the spirometer.</p>"
+        "<p class='instruction'>Avoid extra movements so the HRV and breathing measurements stay accurate.</p>"
+        "<p class='smallPrompt'>Press STOP at any time to stop.</p>"
         "</div>";
 
     procedureStatus = "Measuring HRV with breathing stimulus";
@@ -190,8 +205,8 @@ void WebManager::spStimResults(const float hr, const float rmssd, const float fv
 
     pageMessage =
         "<div class='resultBlock'>"
-        "<p><strong>Breath Stim. Heart Rate (BPM):</strong> " + String(hr, 1) + "</p>"
-        "<p><strong>Breath Stim. HRV (RMSSD, ms):</strong> " + String(rmssd, 1) + "</p>"
+        "<p><strong>Breath Stimukus Heart Rate (BPM):</strong> " + String(hr, 1) + "</p>"
+        "<p><strong>Breath Stimulus HRV (RMSSD, ms):</strong> " + String(rmssd, 1) + "</p>"
         "<p><strong>Average Breath Volume (L):</strong> " + String(fvc, 2) + "</p>"
         "<p class='prompt'>Press START to view final results.</p>"
         "</div>";
@@ -212,13 +227,41 @@ void WebManager::finalResults(
         "<div class='resultBlock'>"
         "<h1>Full HRV Exam Results</h1>"
         "<p><strong>Resting HR, HRV:</strong> " + String(rstHR, 1) + " BPM, " + String(rstHRV, 1) + " ms</p>"
-        "<p><strong>Cuff Stim. HR, HRV:</strong> " + String(bpHR, 1) + " BPM, " + String(bpHRV, 1) + " ms</p>"
-        "<p><strong>Breath Stim. HR, HRV:</strong> " + String(spHR, 1) + " BPM, " + String(spHRV, 1) + " ms</p>"
+        "<p><strong>Cuff Stimulus HR, HRV:</strong> " + String(bpHR, 1) + " BPM, " + String(bpHRV, 1) + " ms</p>"
+        "<p><strong>Breath Stimulus HR, HRV:</strong> " + String(spHR, 1) + " BPM, " + String(spHRV, 1) + " ms</p>"
         "<p><strong>Blood Pressure:</strong> " + String(SBP) + "/" + String(DBP) + "</p>"
         "<p><strong>Average Breath Volume:</strong> " + String(fvc, 2) + " L</p>"
         "</div>";
 
     procedureStatus = "Exam complete";
+}
+
+void WebManager::stopScreen() {
+    pageTitle = "Stop Button Pressed";
+
+    pageMessage =
+        "<div class='center readable'>"
+        "<h1>Stop Button Pressed</h1>"
+        "<div class='ellipsis'>. . .</div>"
+        "<p class='instruction'>HRV exam has been aborted.</p>"
+        "<p class='instruction'>Press START to restart exam from base HRV.</p>"
+        "</div>";
+
+    procedureStatus = "Exam stopped";
+}
+
+void WebManager::errorScreen() {
+    pageTitle = "Exam Errored";
+
+    pageMessage =
+        "<div class='center readable'>"
+        "<h1>Error</h1>"
+        "<div class='ellipsis'>. . .</div>"
+        "<p class='instruction'>Error detected during HRV exam.</p>"
+        "<p class='instruction'>Press START to restart exam from base HRV.</p>"
+        "</div>";
+
+    procedureStatus = "Exam errored";
 }
 
 String WebManager::makeHtmlPage() {

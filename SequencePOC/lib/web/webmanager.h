@@ -34,6 +34,9 @@ public:
         const float fvc
     );
 
+    void stopScreen();
+    void errorScreen();
+
 private:
     WebServer server;
 
