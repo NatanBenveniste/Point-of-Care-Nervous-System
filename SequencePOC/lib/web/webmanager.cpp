@@ -161,6 +161,7 @@ void WebManager::bpStimProg() {
         "<h1>Measuring HRV</h1>"
         "<p class='subhead'>(With Cuff Stimulus)</p>"
         "<div class='ellipsis'>. . .</div>"
+        "<p class='instruction'>Press START again once cuff is fully inflated to begin the holding measurement.</p>"
         "<p class='instruction'>Please remain seated and still while HRV is measured with the cuff stimulus.</p>"
         "<p class='instruction'>Keep your arm relaxed and avoid movements that may distort the results.</p>"
         "<p class='smallPrompt'>Press STOP at any time to stop.</p>"
@@ -205,7 +206,7 @@ void WebManager::spStimResults(const float hr, const float rmssd, const float fv
 
     pageMessage =
         "<div class='resultBlock'>"
-        "<p><strong>Breath Stimukus Heart Rate (BPM):</strong> " + String(hr, 1) + "</p>"
+        "<p><strong>Breath Stimulus Heart Rate (BPM):</strong> " + String(hr, 1) + "</p>"
         "<p><strong>Breath Stimulus HRV (RMSSD, ms):</strong> " + String(rmssd, 1) + "</p>"
         "<p><strong>Average Breath Volume (L):</strong> " + String(fvc, 2) + "</p>"
         "<p class='prompt'>Press START to view final results.</p>"

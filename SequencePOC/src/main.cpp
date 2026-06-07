@@ -2,6 +2,7 @@
 #include <heartrate.h>
 #include "bpcuff.h"
 #include "SpirometerVolume.h"
+#include <webmanager.h>
 
 #define BUTTON_PIN 27
 #define STOP_BUTTON_PIN 20
@@ -25,6 +26,7 @@ float hrv_spirometer = 0.0f;
 // Create library objects
 CuffControl bpCuff;
 HeartRateMonitor hrm;
+WebManager web;
 
 
 // ------------------------------------------------------------
@@ -136,6 +138,9 @@ void emergencyStopReset() {
   bpCuff.stopPump();
   bpCuff.valveOpen();     // deflate cuff
 
+  // Update webpage
+  web.stopScreen();
+
   // Stop/reset active measurements
   spirometerResetTest();
   bpCuff.Reset();
@@ -166,6 +171,7 @@ void goToNextState() {
       state = STATE_GET_BASELINE_HRV;
 
       hrm.beginMeasurement();
+      web.baseHRVprog();
 
       Serial.println("STATE_GET_BASELINE_HRV");
       break;
@@ -173,11 +179,15 @@ void goToNextState() {
     case STATE_GET_BASELINE_HRV:
       state = STATE_GET_BP;
 
+      web.BPprog();
+
       Serial.println("STATE_GET_BP");
       break;
 
     case STATE_GET_BP:
       state = STATE_INFLATE;
+      
+      web.bpStimProg();
 
       Serial.println("STATE_INFLATE");
       break;
@@ -198,6 +208,8 @@ void goToNextState() {
     case STATE_DEFLATE:
       state = STATE_SPIROMETER_HOLD;
 
+      web.spStimProg();
+
       // Start 1-minute spirometer test when entering this state
       spirometerStartTest();
       hrm.beginMeasurement();
@@ -207,6 +219,9 @@ void goToNextState() {
 
     case STATE_SPIROMETER_HOLD:
       state = STATE_DONE;
+      web.finalResults(hr_baseline, hrv_baseline, (int)systolic_mmHg, (int)diastolic_mmHg, 
+        hr_cuff, hrv_cuff, hr_spirometer, hrv_spirometer, spirometerGetAverageBreathVolume_L());
+
       Serial.println("STATE_DONE");
       break;
 
@@ -239,6 +254,10 @@ void setup() {
     return;
   }
 
+  // initialize web
+  web.begin();
+  web.startScreen();
+
   Serial.println("SYSTEM_START");
   Serial.println("Press the button to start collecting ECG data.");
 }
@@ -251,6 +270,8 @@ void setup() {
 // ============================================================
 
 void loop() {
+  // tick web server
+  web.tick();
 
   // ============================================================
   // EMERGENCY STOP BUTTON CHECK
@@ -291,6 +312,8 @@ void loop() {
         hr_baseline = hrm.hr;
         hrv_baseline = hrm.rmssd;
 
+        web.baseHRVresults(hr_baseline, hrv_baseline);
+
         Serial.println("BASELINE_DONE");
 
         Serial.print("Baseline HR: ");
@@ -322,6 +345,8 @@ void loop() {
             systolic_mmHg = bp.systolic;
             diastolic_mmHg = bp.diastolic;
 
+            web.BPresults((int)systolic_mmHg, (int)diastolic_mmHg);
+
             Serial.print("SYSTOLIC,");
             Serial.println(systolic_mmHg);
 
@@ -335,6 +360,7 @@ void loop() {
           } 
           else {
             Serial.println("BP_FAILED");
+            web.errorScreen();
             state = STATE_ERROR;
           }
         }
@@ -378,6 +404,8 @@ void loop() {
         if (done && hrm.hrvDone == true) {
           hr_cuff = hrm.hr;
           hrv_cuff = hrm.rmssd;
+
+          web.bpStimResults(hr_cuff, hrv_cuff);
 
           Serial.println("HOLD_DONE");
 
@@ -435,6 +463,8 @@ void loop() {
         if (done) {
           hr_spirometer = hrm.hr;
           hrv_spirometer = hrm.rmssd;
+
+          web.spStimResults(hr_spirometer, hrv_spirometer, spirometerGetAverageBreathVolume_L());
 
           Serial.println("SPIROMETER_DONE");
 
