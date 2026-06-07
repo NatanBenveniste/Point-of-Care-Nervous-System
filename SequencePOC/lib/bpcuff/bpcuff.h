@@ -115,7 +115,7 @@ public:
   float holdPressureDropMmHg() const;
 
   unsigned long holdStartMs;
-  static constexpr unsigned long HOLD_DURATION_MS = 305000UL; // normally 305000
+  static constexpr unsigned long HOLD_DURATION_MS = 65000UL; // normally 305000
 
 private:
   static const int MAX_POINTS = 1200;

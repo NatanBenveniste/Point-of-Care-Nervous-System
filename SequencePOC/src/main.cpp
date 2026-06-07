@@ -295,7 +295,7 @@ void loop() {
     // ============================================================
     case STATE_SYSTEM_START: {
       
-      if (buttonPressed()) {
+      if (pressed) {
         goToNextState();
       }
       break;
@@ -418,7 +418,7 @@ void loop() {
           stateDone = true;
         }
 
-        if(now - bpCuff.holdStartMs >= 240000UL && !hrm.collecting && !hrm.hrvDone) {
+        if(now - bpCuff.holdStartMs >= 0UL && !hrm.collecting && !hrm.hrvDone) {
           hrm.beginMeasurement();
         }
 
