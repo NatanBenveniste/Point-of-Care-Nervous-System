@@ -90,6 +90,7 @@ void updateHRV() {
         if (hrm.windowCount >= hrm.targetWindows) {
             hrm.hrStats(hrm.rrIntervals);
             hrm.collecting = false;
+            hrm.hrvDone = true;
         } 
         else {
             hrm.windowStart = micros();
@@ -137,8 +138,10 @@ void emergencyStopReset() {
 
   // Stop/reset active measurements
   spirometerResetTest();
+  bpCuff.Reset();
 
   // If  HRV library has a reset/stop function, call it here
+  hrm.hrvDone = false;
 
   // Reset state machine flags
   stateDone = false;
@@ -162,7 +165,7 @@ void goToNextState() {
     case STATE_SYSTEM_START:
       state = STATE_GET_BASELINE_HRV;
 
-      hrm.beginMeasurement(60);
+      hrm.beginMeasurement();
 
       Serial.println("STATE_GET_BASELINE_HRV");
       break;
@@ -181,8 +184,7 @@ void goToNextState() {
 
     case STATE_INFLATE:
       state = STATE_HOLD;
-
-      hrm.beginMeasurement(60);
+      hrm.hrvDone = false;  // reset HRV done flag for cuff hold phase
 
       Serial.println("STATE_HOLD");
       break;
@@ -198,7 +200,7 @@ void goToNextState() {
 
       // Start 1-minute spirometer test when entering this state
       spirometerStartTest();
-      hrm.beginMeasurement(60);
+      hrm.beginMeasurement();
 
       Serial.println("STATE_SPIROMETER_HOLD");
       break;
@@ -348,7 +350,7 @@ void loop() {
     case STATE_INFLATE: {
 
       if (!stateDone) {
-        bool done = bpCuff.Inflate(systolic_mmHg);
+        bool done = bpCuff.Inflate(systolic_mmHg + 10.0f);
 
         if (done) {
           Serial.println("INFLATE_DONE");
@@ -365,11 +367,15 @@ void loop() {
     // 4. HOLD CUFF / UPDATE HRV
     // ============================================================
     case STATE_HOLD: {
+      unsigned long now = millis();
 
       if (!stateDone) {
-        bool done = bpCuff.Hold(updateHRV);
+    
+        updateHRV();
 
-        if (done) {
+        bool done = bpCuff.Hold();
+
+        if (done && hrm.hrvDone == true) {
           hr_cuff = hrm.hr;
           hrv_cuff = hrm.rmssd;
 
@@ -381,11 +387,13 @@ void loop() {
           Serial.println(hrv_cuff);
           Serial.println("Press the button to deflate the cuff and start the spirometer test.");
 
-          hrm.hr = 0;
-          hrm.rmssd = 0;
-
           stateDone = true;
         }
+
+        if(now - bpCuff.holdStartMs >= 240000UL && !hrm.collecting && !hrm.hrvDone) {
+          hrm.beginMeasurement();
+        }
+
       }
 
       break;

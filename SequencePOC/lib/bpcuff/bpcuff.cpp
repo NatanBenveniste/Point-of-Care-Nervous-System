@@ -409,7 +409,7 @@ bool CuffControl::Inflate(float targetMmHg) {
 // Done after 5 minutes.
 // ============================================================
 
-bool CuffControl::Hold(void (*updateHRV)()) { 
+bool CuffControl::Hold() { 
   unsigned long now = millis();
 
   // First call starts hold
@@ -430,7 +430,6 @@ bool CuffControl::Hold(void (*updateHRV)()) {
   stopPump();
   valveClose();
 
-  updateHRV();
 
   holdEndPressure = getPressureMmHg();
 
@@ -502,10 +501,16 @@ void CuffControl::Reset() {
 
   state = BPCuffState::IDLE;
 
+  result.complete = false;
   holdStarted = false;
   holdStartMs = 0;
   holdStartPressure = 0.0f;
   holdEndPressure = 0.0f;
+
+  result.systolic = -1.0f;
+  result.diastolic = -1.0f;
+  result.map = -1.0f;
+
 }
 
 BPReading CuffControl::lastReading() const {

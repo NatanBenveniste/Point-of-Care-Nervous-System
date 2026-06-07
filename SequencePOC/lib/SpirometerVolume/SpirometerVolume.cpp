@@ -337,12 +337,6 @@ void spirometerBegin() {
   // This happens before testing, so it does not affect sampling rate.
   delay(3000);
 
-  // Zero pressure sensor to atmosphere
-  calibrateZero();
-  Serial.println("SPIROMETER_ZERORED");
-  Serial.print("ATMOSPHERIC_ZERO_PA,");
-  Serial.println(patm_Pa, 2);
-
 
   // Initialize timing
   startTime_us = micros();
@@ -390,6 +384,14 @@ void spirometerResetTest() {
   // Reset timing
   startTime_us = micros();
   lastIntegrationTime_us = startTime_us;
+
+
+  // Zero pressure sensor to atmosphere
+  calibrateZero();
+  Serial.println("SPIROMETER_ZERORED");
+  Serial.print("ATMOSPHERIC_ZERO_PA,");
+  Serial.println(patm_Pa, 2);
+
 }
 
 // ============================================================

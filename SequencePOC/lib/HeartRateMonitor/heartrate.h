@@ -52,6 +52,7 @@ public:
 
     // collecting
     bool collecting;
+    bool hrvDone;
     uint32_t startTime;
     uint32_t windowStart;
     int leadsOffCount;
@@ -61,7 +62,7 @@ public:
     void startCollecting();
     void updateRaw();
     bool windowElapsed();
-    void beginMeasurement(int seconds);
+    void beginMeasurement();
 
     // processing
     ECG bandPass(const ECG& ecg);

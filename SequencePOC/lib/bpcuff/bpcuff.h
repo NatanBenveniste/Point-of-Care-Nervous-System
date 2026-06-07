@@ -105,7 +105,7 @@ public:
   // ---------------------------------------------------------------------------
   bool Inflate();
   bool Inflate(float targetMmHg);
-  bool Hold(void (*updateHRV)() = nullptr);
+  bool Hold();
   bool Deflate();
 
   BPReading lastReading() const;
@@ -113,6 +113,9 @@ public:
   float holdStartPressureMmHg() const;
   float holdEndPressureMmHg() const;
   float holdPressureDropMmHg() const;
+
+  unsigned long holdStartMs;
+  static constexpr unsigned long HOLD_DURATION_MS = 305000UL; // normally 305000
 
 private:
   static const int MAX_POINTS = 1200;
@@ -134,7 +137,6 @@ private:
   static constexpr unsigned long PUMP_TIMEOUT_MS = 30000UL;
   static constexpr unsigned long BP_DEFLATE_TIMEOUT_MS = 60000UL;
   static constexpr unsigned long FULL_DEFLATE_TIMEOUT_MS = 30000UL;
-  static constexpr unsigned long HOLD_DURATION_MS = 65000UL;
   static constexpr unsigned long BP_SAMPLE_PERIOD_MS = 10UL;
 
   uint8_t _in1Pin;
@@ -160,9 +162,7 @@ private:
 
   float manualInflateTargetMmHg;
   bool manualInflateStarted;
-
   bool holdStarted;
-  unsigned long holdStartMs;
   float holdStartPressure;
   float holdEndPressure;
 

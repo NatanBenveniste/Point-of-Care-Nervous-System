@@ -699,7 +699,7 @@ void HeartRateMonitor::clearVecs() {
     std::vector<int32_t>().swap(HeartRateMonitor::peakIdx);
 }
 
-void HeartRateMonitor::beginMeasurement(int seconds) {
+void HeartRateMonitor::beginMeasurement() {
     rrIntervals.clear();
     leadsOffCount = 0;
     removedRRCount = 0;
@@ -709,7 +709,7 @@ void HeartRateMonitor::beginMeasurement(int seconds) {
     rmssd = 0.0f;
 
     windowCount = 0;
-    targetWindows = seconds / 30;
+    targetWindows = 2;
 
     if (targetWindows < 1) {
         targetWindows = 1;
@@ -719,9 +719,8 @@ void HeartRateMonitor::beginMeasurement(int seconds) {
     windowStart = startTime;
     lastSampleTime = 0; 
 
-    clearVecs();
-
     collecting = true;
+    hrvDone = false;
 }
 
 bool HeartRateMonitor::windowElapsed() {
