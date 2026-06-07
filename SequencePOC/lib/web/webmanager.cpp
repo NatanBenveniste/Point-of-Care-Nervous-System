@@ -255,7 +255,7 @@ void WebManager::errorScreen() {
 
     pageMessage =
         "<div class='center readable'>"
-        "<h1>Error</h1>"
+        "<h1>Error  </h1>"
         "<div class='ellipsis'>. . .</div>"
         "<p class='instruction'>Error detected during HRV exam.</p>"
         "<p class='instruction'>Press START to restart exam from base HRV.</p>"
