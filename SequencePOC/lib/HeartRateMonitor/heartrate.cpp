@@ -23,6 +23,10 @@ void HeartRateMonitor::init() {
     pinMode(leadOffMinus, INPUT);
     pinMode(leadOffPlus, INPUT);
     pinMode(ecgPin, INPUT);
+
+    // LED
+    pinMode(heartLedPin, OUTPUT);
+    digitalWrite(heartLedPin, LOW);
 }
 
 // electrode leads no signal
@@ -66,6 +70,29 @@ void HeartRateMonitor::updateRaw() {
 
     rawECG.t.push_back(t);
     rawECG.val.push_back(v);
+}
+
+void HeartRateMonitor::updateHeartLED(float ecgValue) {
+    if (ecgValue < 0) {  // leads off
+        analogWrite(heartLedPin, 0);
+        return;
+    }
+
+    // Pico analogRead is usually 0–1023 unless resolution is changed.
+    // analogWrite is usually 0–255.
+    int adcCount = (int)ecgValue;
+    
+    const int ledThreshold = 500;  // tune this
+    const int ledMax = 1023;        // tune this based on beat peak
+
+    int pwmValue = 0;
+
+    if (adcCount > ledThreshold) {
+        pwmValue = map(adcCount, ledThreshold, ledMax, 0, 255);
+        pwmValue = constrain(pwmValue, 0, 255);
+    }
+
+    analogWrite(heartLedPin, pwmValue);
 }
 
 // collect for a designated period, input: seconds

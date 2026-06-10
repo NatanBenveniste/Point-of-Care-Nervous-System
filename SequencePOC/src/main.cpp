@@ -264,7 +264,7 @@ void setup() {
   //   Serial.println("CUFF_SENSOR_FAILED");
   //   state = STATE_ERROR;
   //   return;
-  // }\
+  // }
 
   // initialize web
   web.begin();
@@ -284,6 +284,8 @@ void setup() {
 void loop() {
   // tick web server
   web.tick();
+  
+  hrm.updateHeartLED(hrm.readECG());
 
   // ============================================================
   // EMERGENCY STOP BUTTON CHECK
