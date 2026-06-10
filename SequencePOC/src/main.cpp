@@ -3,12 +3,14 @@
 #include <displaymanager.h>
 #include <heartrate.h>
 
+
+
 MotorControl control;
 DisplayManager screen;
 HeartRateMonitor hrm;
 
 
-void setup() {
+void setup() {  
   Serial.begin(115200);
   delay(500);
   Serial.println("serial");
@@ -19,43 +21,48 @@ void setup() {
 }
 
 
+float val = 6.7;
 void loop() {
   Serial.println("starting");
-  // delay(2000);
-  // screen.startScreen();
-  // waitStart();
-  // screen.infoScreen();
-  // waitStart();
-  // screen.baseHRVprog();
-  // waitStart();
-  // screen.baseHRVresults(67, 67);
-  // waitStart();
-  // screen.BPprog();
-  // waitStart();
-  // screen.BPresults(120, 80);
-  // waitStart();
-  // screen.bpStimProg();
-  // waitStart();
-  // screen.bpStimResults(67, 67);
-  // waitStart();
-  // screen.spStimProg();
-  // waitStart();
-  // screen.spStimResults(67, 67, 0.67);
-  // waitStart();
-  // screen.finalResults(67, 67, 67, 67, 67, 67, 67, 67, 67);
+  screen.startScreen(val);
+  delay(2000);
+  screen.infoScreen(val);
+  delay(2000);
+  screen.baseHRVprog(val);
+  delay(2000);
+  screen.baseHRVresults(67, 67, val);
+  delay(2000);
+  screen.BPprog(val);
+  delay(2000);
+  screen.BPresults(120, 80,val);
+  delay(2000);
+  screen.bpStimProg(val);
+  delay(2000);
+  screen.bpStimResults(67, 67, val);
+  delay(2000);
+  screen.spStimProg(val);
+  delay(2000);
+  screen.spStimResults(67, 67, 0.67, val);
+  delay(2000);
+  screen.finalResults(67, 67, 67, 67, 67, 67, 67, 67, 67, val);
+  delay(2000);
 
-  Serial.println("before clear");
-  screen.display.clearBuffer();
-  Serial.println("after clearBuffer");
+  screen.errorScreen(val);
+  delay(2000);
+  screen.stopScreen(val);
 
-  screen.display.setCursor(20, 20);
-  screen.display.setTextColor(EPD_BLACK);
-  screen.display.setTextSize(2);
-  screen.display.print("TEST");
+  // Serial.println("before clear");
+  // screen.display.clearBuffer();
+  // Serial.println("after clearBuffer");
 
-  Serial.println("before display");
-  screen.display.display();
-  Serial.println("after display");
+  // screen.display.setCursor(20, 20);
+  // screen.display.setTextColor(EPD_BLACK);
+  // screen.display.setTextSize(2);
+  // screen.display.print("TEST");
+
+  // Serial.println("before display");
+  // screen.display.display();
+  // Serial.println("after display");
   
   
   while(1) {

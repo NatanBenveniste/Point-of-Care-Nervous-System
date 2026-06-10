@@ -32,25 +32,32 @@ public:
     void fontTest();
 
     // menu functions
-    void startScreen();
-    void infoScreen();
+    void startScreen(const float vBat);
+    void infoScreen(const float vBat);
 
-    void baseHRVprog();
-    void baseHRVresults(const float hr, const float rmssd);
+    void baseHRVprog(const float vBat);
+    void baseHRVresults(const float hr, const float rmssd, const float vBat);
 
-    void BPprog();
-    void BPresults(const int SBP, const int DBP);
+    void BPprog(const float vBat);
+    void BPresults(const int SBP, const int DBP, const float vBat);
 
-    void bpStimProg();
-    void bpStimResults(const float hr, const float rmssd);
+    void bpStimProg(const float vBat);
+    void bpStimResults(const float hr, const float rmssd, const float vBat);
 
-    void spStimProg();
-    void spStimResults(const float hr, const float rmssd, const float fvc);
+    void spStimProg(const float vBat);
+    void spStimResults(const float hr, const float rmssd, const float fvc, const float vBat);
 
-    void finalResults(const float rstHR, const float rstHRV, 
-    const float SBP, const float DBP,
-    const float bpHR, const float bpHRV,
-    const float spHR, const float spHRV, const float fvc);
+    void finalResults(
+        const float rstHR, const float rstHRV,
+        const int SBP, const int DBP,
+        const float bpHR, const float bpHRV,
+        const float spHR, const float spHRV,
+        const float fvc,
+        const float vBat
+    );
+
+    void stopScreen(const float vBat);
+    void errorScreen(const float vBat);
 
 private:
     void testdrawtext(const char *text, uint16_t color);
@@ -61,6 +68,13 @@ private:
     void writeBig(const int x, const int y, const char *text);
 
     // helper
-    void centerText(const String &text, const int y);
+    void centerText(const char *text, const int y);
+
+    void printLine(const String &text, const int x, const int y);
+    void printValueLine(const String &label, const String &value, const int x, const int y);
+
+    void drawHeader(const String &title);
+    void drawPrompt(const String &text, const int y);
+    void drawBatteryVoltage(const float vBat);
 
 };
