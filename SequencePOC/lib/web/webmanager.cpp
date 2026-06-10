@@ -69,16 +69,24 @@ void WebManager::handleRoot() {
     server.send(200, "text/html", makeHtmlPage());
 }
 
-void WebManager::startScreen() {
+void WebManager::startScreen(const float vBat) {
     pageTitle = "67 HRV MONITOR";
-    pageMessage = "Press START to begin exam";
+
+    pageMessage =
+        batteryHtml(vBat) +
+        "<div class='center readable'>"
+        "<p>Press START to begin exam</p>"
+        "<p class='smallPrompt voltageNote'>Device working voltage: 3.0-4.2V</p>"
+        "</div>";
+
     procedureStatus = "Waiting to begin";
 }
 
-void WebManager::infoScreen() {
+void WebManager::infoScreen(const float vBat) {
     pageTitle = "Exam Information";
 
     pageMessage =
+        batteryHtml(vBat) + 
         "<div class='left readable'>"
         "<p>This device measures heart rate variability (HRV) and its reaction to sympathetic and parasympathetic stimuli " 
         "using a blood pressure cuff and a spirometer.</p>"
@@ -98,10 +106,11 @@ void WebManager::infoScreen() {
     procedureStatus = "Information screen";
 }
 
-void WebManager::baseHRVprog() {
+void WebManager::baseHRVprog(const float vBat) {
     pageTitle = "Measuring Resting HRV";
 
     pageMessage =
+        batteryHtml(vBat) + 
         "<div class='center readable'>"
         "<h1>Measuring Resting HRV</h1>"
         "<div class='ellipsis'>. . .</div>"
@@ -113,10 +122,11 @@ void WebManager::baseHRVprog() {
     procedureStatus = "Measuring resting HRV";
 }
 
-void WebManager::baseHRVresults(const float hr, const float rmssd) {
+void WebManager::baseHRVresults(const float hr, const float rmssd, const float vBat) {
     pageTitle = "Resting HRV Results";
 
     pageMessage =
+        batteryHtml(vBat) + 
         "<div class='resultBlock'>"
         "<p><strong>Resting Heart Rate (BPM):</strong> " + String(hr, 1) + "</p>"
         "<p><strong>Resting HRV (RMSSD, ms):</strong> " + String(rmssd, 1) + "</p>"
@@ -126,10 +136,11 @@ void WebManager::baseHRVresults(const float hr, const float rmssd) {
     procedureStatus = "Resting HRV complete";
 }
 
-void WebManager::BPprog() {
+void WebManager::BPprog(const float vBat) {
     pageTitle = "Measuring Blood Pressure";
 
     pageMessage =
+        batteryHtml(vBat) + 
         "<div class='center readable'>"
         "<h1>Measuring Blood Pressure</h1>"
         "<div class='ellipsis'>. . .</div>"
@@ -141,10 +152,11 @@ void WebManager::BPprog() {
     procedureStatus = "Measuring blood pressure";
 }
 
-void WebManager::BPresults(const int SBP, const int DBP) {
+void WebManager::BPresults(const int SBP, const int DBP, const float vBat) {
     pageTitle = "Blood Pressure Results";
 
     pageMessage =
+        batteryHtml(vBat) + 
         "<div class='resultBlock'>"
         "<p><strong>Blood Pressure (SYS/DIA):</strong> " + String(SBP) + "/" + String(DBP) + "</p>"
         "<p class='prompt'>Press START to continue to HRV measurement with cuff stimulus.</p>"
@@ -153,10 +165,11 @@ void WebManager::BPresults(const int SBP, const int DBP) {
     procedureStatus = "Blood pressure complete";
 }
 
-void WebManager::bpStimProg() {
+void WebManager::bpStimProg(const float vBat) {
     pageTitle = "Measuring HRV";
 
     pageMessage =
+        batteryHtml(vBat) + 
         "<div class='center readable'>"
         "<h1>Measuring HRV</h1>"
         "<p class='subhead'>(With 5 Minute Cuff Stimulus)</p>"
@@ -170,10 +183,11 @@ void WebManager::bpStimProg() {
     procedureStatus = "Measuring HRV with cuff stimulus";
 }
 
-void WebManager::bpStimResults(const float hr, const float rmssd) {
+void WebManager::bpStimResults(const float hr, const float rmssd, const float vBat) {
     pageTitle = "Cuff Stimulus HRV Results";
 
     pageMessage =
+        batteryHtml(vBat) + 
         "<div class='resultBlock'>"
         "<p><strong>Cuff Stim. Heart Rate (BPM):</strong> " + String(hr, 1) + "</p>"
         "<p><strong>Cuff Stim. HRV (RMSSD, ms):</strong> " + String(rmssd, 1) + "</p>"
@@ -185,10 +199,11 @@ void WebManager::bpStimResults(const float hr, const float rmssd) {
     procedureStatus = "Cuff stimulus HRV complete";
 }
 
-void WebManager::spStimProg() {
+void WebManager::spStimProg(const float vBat) {
     pageTitle = "Measuring HRV";
 
     pageMessage =
+        batteryHtml(vBat) + 
         "<div class='center readable'>"
         "<h1>Measuring HRV</h1>"
         "<p class='subhead'>(With Breathing Stimulus)</p>"
@@ -202,10 +217,11 @@ void WebManager::spStimProg() {
     procedureStatus = "Measuring HRV with breathing stimulus";
 }
 
-void WebManager::spStimResults(const float hr, const float rmssd, const float fvc) {
+void WebManager::spStimResults(const float hr, const float rmssd, const float fvc, const float vBat) {
     pageTitle = "Breathing Stimulus HRV Results";
 
     pageMessage =
+        batteryHtml(vBat) + 
         "<div class='resultBlock'>"
         "<p><strong>Breath Stimulus Heart Rate (BPM):</strong> " + String(hr, 1) + "</p>"
         "<p><strong>Breath Stimulus HRV (RMSSD, ms):</strong> " + String(rmssd, 1) + "</p>"
@@ -220,12 +236,13 @@ void WebManager::finalResults(
     const float rstHR, const float rstHRV,
     const int SBP, const int DBP,
     const float bpHR, const float bpHRV,
-    const float spHR, const float spHRV,
-    const float fvc
+    const float spHR, const float spHRV, const float fvc,
+    const float vBat
 ) {
     pageTitle = "Full HRV Exam Results";
 
     pageMessage =
+        batteryHtml(vBat) + 
         "<div class='resultBlock'>"
         "<h1>Full HRV Exam Results</h1>"
         "<p><strong>Resting HR, HRV:</strong> " + String(rstHR, 1) + " BPM, " + String(rstHRV, 1) + " ms</p>"
@@ -238,10 +255,11 @@ void WebManager::finalResults(
     procedureStatus = "Exam complete";
 }
 
-void WebManager::stopScreen() {
+void WebManager::stopScreen(const float vBat) {
     pageTitle = "Stop Button Pressed";
 
     pageMessage =
+        batteryHtml(vBat) + 
         "<div class='center readable'>"
         "<h1>Stop Button Pressed</h1>"
         "<div class='ellipsis'>. . .</div>"
@@ -252,10 +270,11 @@ void WebManager::stopScreen() {
     procedureStatus = "Exam stopped";
 }
 
-void WebManager::errorScreen() {
+void WebManager::errorScreen(const float vBat) {
     pageTitle = "Exam Errored";
 
     pageMessage =
+        batteryHtml(vBat) + 
         "<div class='center readable'>"
         "<h1>Error  </h1>"
         "<div class='ellipsis'>. . .</div>"
@@ -264,6 +283,20 @@ void WebManager::errorScreen() {
         "</div>";
 
     procedureStatus = "Exam errored";
+}
+
+String WebManager::batteryHtml(const float vBat) {
+    if (vBat > 4.2) {
+        return
+            "<div class='batteryStatus'>"
+            "Fully Charged)"
+            "</div>";
+    }
+
+    return
+        "<div class='batteryStatus'>"
+        "Battery Voltage: " + String(vBat) + "V"
+        "</div>";
 }
 
 String WebManager::makeHtmlPage() {
@@ -478,6 +511,20 @@ String WebManager::makeHtmlPage() {
         gap: 8px;
       }
     }
+    
+    .batteryStatus {
+      position: fixed;
+      top: 14px;
+      right: 18px;
+      font-size: 18px;
+      font-weight: bold;
+      background: rgba(255, 255, 255, 0.85);
+      color: #111;
+      padding: 6px 12px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      z-index: 10;
+      }
   </style>
 </head>
 

@@ -6,6 +6,7 @@
 
 #define BUTTON_PIN 27
 #define STOP_BUTTON_PIN 20
+#define BATTERY_PIN 26
 
 // Store measured BP values
 float systolic_mmHg = 0.0;
@@ -100,6 +101,17 @@ void updateHRV() {
     }
 }
 
+// ============================================================
+// BATTERY VOLTAGE READ
+// Returns Percentage of VBAT/3.7V
+// Passed into Display Functions for State of Charge
+// ============================================================
+
+float getVBat() {
+  long adcraw = analogRead(BATTERY_PIN);
+  float vBat = adcraw*(2*3.3/1024);
+  return vBat;
+}
 
 // ============================================================
 // BUTTON PRESS HELPER
@@ -139,7 +151,7 @@ void emergencyStopReset() {
   bpCuff.valveOpen();     // deflate cuff
 
   // Update webpage
-  web.stopScreen();
+  web.stopScreen(getVBat());
 
   // Stop/reset active measurements
   spirometerResetTest();
@@ -171,7 +183,7 @@ void goToNextState() {
       state = STATE_GET_BASELINE_HRV;
 
       hrm.beginMeasurement();
-      web.baseHRVprog();
+      web.baseHRVprog(getVBat());
 
       Serial.println("STATE_GET_BASELINE_HRV");
       break;
@@ -179,7 +191,7 @@ void goToNextState() {
     case STATE_GET_BASELINE_HRV:
       state = STATE_GET_BP;
 
-      web.BPprog();
+      web.BPprog(getVBat());
 
       Serial.println("STATE_GET_BP");
       break;
@@ -187,7 +199,7 @@ void goToNextState() {
     case STATE_GET_BP:
       state = STATE_INFLATE;
       
-      web.bpStimProg();
+      web.bpStimProg(getVBat());
 
       Serial.println("STATE_INFLATE");
       break;
@@ -208,7 +220,7 @@ void goToNextState() {
     case STATE_DEFLATE:
       state = STATE_SPIROMETER_HOLD;
 
-      web.spStimProg();
+      web.spStimProg(getVBat());
 
       // Start 1-minute spirometer test when entering this state
       spirometerStartTest();
@@ -220,7 +232,7 @@ void goToNextState() {
     case STATE_SPIROMETER_HOLD:
       state = STATE_DONE;
       web.finalResults(hr_baseline, hrv_baseline, (int)systolic_mmHg, (int)diastolic_mmHg, 
-        hr_cuff, hrv_cuff, hr_spirometer, hrv_spirometer, spirometerGetAverageBreathVolume_L());
+        hr_cuff, hrv_cuff, hr_spirometer, hrv_spirometer, spirometerGetAverageBreathVolume_L(), getVBat());
 
       Serial.println("STATE_DONE");
       break;
@@ -243,20 +255,20 @@ void setup() {
   pinMode(STOP_BUTTON_PIN, INPUT_PULLUP);
   
   hrm.init(); // TODO: bool with error 
-  bool cuffOK = bpCuff.bpCuffBegin();
+  // bool cuffOK = bpCuff.bpCuffBegin();
 
   // Initialize spirometer pressure sensor and zero to atmosphere
-  spirometerBegin();
+  // spirometerBegin();
 
-  if (!cuffOK) {
-    Serial.println("CUFF_SENSOR_FAILED");
-    state = STATE_ERROR;
-    return;
-  }
+  // if (!cuffOK) {
+  //   Serial.println("CUFF_SENSOR_FAILED");
+  //   state = STATE_ERROR;
+  //   return;
+  // }\
 
   // initialize web
   web.begin();
-  web.startScreen();
+  web.startScreen(getVBat());
 
   Serial.println("SYSTEM_START");
   Serial.println("Press the button to start collecting ECG data.");
@@ -312,7 +324,7 @@ void loop() {
         hr_baseline = hrm.hr;
         hrv_baseline = hrm.rmssd;
 
-        web.baseHRVresults(hr_baseline, hrv_baseline);
+        web.baseHRVresults(hr_baseline, hrv_baseline, getVBat());
 
         Serial.println("BASELINE_DONE");
 
@@ -345,7 +357,7 @@ void loop() {
             systolic_mmHg = bp.systolic;
             diastolic_mmHg = bp.diastolic;
 
-            web.BPresults((int)systolic_mmHg, (int)diastolic_mmHg);
+            web.BPresults((int)systolic_mmHg, (int)diastolic_mmHg, getVBat());
 
             Serial.print("SYSTOLIC,");
             Serial.println(systolic_mmHg);
@@ -360,7 +372,7 @@ void loop() {
           } 
           else {
             Serial.println("BP_FAILED");
-            web.errorScreen();
+            web.errorScreen(getVBat());
             state = STATE_ERROR;
           }
         }
@@ -405,7 +417,7 @@ void loop() {
           hr_cuff = hrm.hr;
           hrv_cuff = hrm.rmssd;
 
-          web.bpStimResults(hr_cuff, hrv_cuff);
+          web.bpStimResults(hr_cuff, hrv_cuff, getVBat());
 
           Serial.println("HOLD_DONE");
 
@@ -418,7 +430,7 @@ void loop() {
           stateDone = true;
         }
 
-        if(now - bpCuff.holdStartMs >= 0UL && !hrm.collecting && !hrm.hrvDone) {
+        if(now - bpCuff.holdStartMs >= 240000UL && !hrm.collecting && !hrm.hrvDone) { // normal 240000UL
           hrm.beginMeasurement();
         }
 
@@ -464,7 +476,7 @@ void loop() {
           hr_spirometer = hrm.hr;
           hrv_spirometer = hrm.rmssd;
 
-          web.spStimResults(hr_spirometer, hrv_spirometer, spirometerGetAverageBreathVolume_L());
+          web.spStimResults(hr_spirometer, hrv_spirometer, spirometerGetAverageBreathVolume_L(), getVBat());
 
           Serial.println("SPIROMETER_DONE");
 
