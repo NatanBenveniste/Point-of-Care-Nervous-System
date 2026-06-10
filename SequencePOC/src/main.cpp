@@ -295,7 +295,7 @@ void loop() {
     // ============================================================
     case STATE_SYSTEM_START: {
       
-      if (buttonPressed()) {
+      if (pressed) {
         goToNextState();
       }
       break;
