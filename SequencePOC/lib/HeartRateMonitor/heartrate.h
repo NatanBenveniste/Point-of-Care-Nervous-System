@@ -19,6 +19,7 @@
 #define leadOffMinus 22
 #define ecgPin 28
 
+
 struct ECG {
     std::vector<float> t;
     std::vector<float> val;
@@ -63,6 +64,9 @@ public:
     void updateRaw();
     bool windowElapsed();
     void beginMeasurement();
+    void updateHeartLED(float ecgValue);
+
+    const int heartLedPin = 0;   
 
     // processing
     ECG bandPass(const ECG& ecg);

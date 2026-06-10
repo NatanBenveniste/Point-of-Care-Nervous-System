@@ -297,6 +297,8 @@ void setup() {
 void loop() {
   // tick web server
   web.tick();
+  
+  hrm.updateHeartLED(hrm.readECG());
 
   // ============================================================
   // EMERGENCY STOP BUTTON CHECK
@@ -433,6 +435,7 @@ void loop() {
           hrv_cuff = hrm.rmssd;
 
           web.bpStimResults(hr_cuff, hrv_cuff, getVBat());
+          screen.bpStimResults(hr_cuff, hrv_cuff, getVBat());
 
           Serial.println("HOLD_DONE");
 
