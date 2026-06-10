@@ -403,7 +403,7 @@ void loop() {
     case STATE_INFLATE: {
 
       if (!stateDone) {
-        bool done = bpCuff.Inflate(systolic_mmHg + 10.0f);
+        bool done = bpCuff.Inflate(systolic_mmHg + 12.5f);
 
         if (done) {
           Serial.println("INFLATE_DONE");
