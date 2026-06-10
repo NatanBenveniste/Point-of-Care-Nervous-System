@@ -10,9 +10,6 @@
 #include <Fonts/FreeSerif18pt7b.h>
 #include <Fonts/FreeSerif24pt7b.h>
 
-// spi pins
-#define EPD_SPI SPI1
-
 // control pins
 #define EPD_DC 15
 #define EPD_CS 13
@@ -24,12 +21,9 @@
 class DisplayManager {
 public:
     DisplayManager();
-    // ThinkInk_370_Tricolor_BABMFGNR display;
     ThinkInk_420_Grayscale4_MFGN display;
 
     void init();
-
-    void fontTest();
 
     // menu functions
     void startScreen(const float vBat);
@@ -60,21 +54,8 @@ public:
     void errorScreen(const float vBat);
 
 private:
-    void testdrawtext(const char *text, uint16_t color);
-
-    // testing functions
-    void runDemo();
-    void fillScreenTest(const char c);
-    void writeBig(const int x, const int y, const char *text);
-
     // helper
     void centerText(const char *text, const int y);
-
-    void printLine(const String &text, const int x, const int y);
-    void printValueLine(const String &label, const String &value, const int x, const int y);
-
     void drawHeader(const String &title);
-    void drawPrompt(const String &text, const int y);
     void drawBatteryVoltage(const float vBat);
-
 };
