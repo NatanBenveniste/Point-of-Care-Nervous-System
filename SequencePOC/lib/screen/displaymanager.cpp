@@ -12,6 +12,12 @@ void DisplayManager::init() {
 
     delay(100);
 
+    // create spi
+    SPI1.setSCK(10);
+    SPI1.setTX(11);
+    SPI1.setRX(12);
+    SPI1.begin();
+
     display.begin(THINKINK_MONO);
     display.setRotation(2); // 0 for flat, 2 for in device
     display.setTextColor(EPD_BLACK);

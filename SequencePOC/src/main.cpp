@@ -3,6 +3,7 @@
 #include "bpcuff.h"
 #include "SpirometerVolume.h"
 #include <webmanager.h>
+#include <displaymanager.h>
 
 #define BUTTON_PIN 27
 #define STOP_BUTTON_PIN 20
@@ -28,6 +29,7 @@ float hrv_spirometer = 0.0f;
 CuffControl bpCuff;
 HeartRateMonitor hrm;
 WebManager web;
+DisplayManager screen;
 
 
 // ------------------------------------------------------------
@@ -152,6 +154,7 @@ void emergencyStopReset() {
 
   // Update webpage
   web.stopScreen(getVBat());
+  screen.stopScreen(getVBat());
 
   // Stop/reset active measurements
   spirometerResetTest();
@@ -184,6 +187,7 @@ void goToNextState() {
 
       hrm.beginMeasurement();
       web.baseHRVprog(getVBat());
+      screen.baseHRVprog(getVBat());
 
       Serial.println("STATE_GET_BASELINE_HRV");
       break;
@@ -192,6 +196,7 @@ void goToNextState() {
       state = STATE_GET_BP;
 
       web.BPprog(getVBat());
+      screen.BPprog(getVBat());
 
       Serial.println("STATE_GET_BP");
       break;
@@ -200,6 +205,7 @@ void goToNextState() {
       state = STATE_INFLATE;
       
       web.bpStimProg(getVBat());
+      screen.bpStimProg(getVBat());
 
       Serial.println("STATE_INFLATE");
       break;
@@ -221,6 +227,7 @@ void goToNextState() {
       state = STATE_SPIROMETER_HOLD;
 
       web.spStimProg(getVBat());
+      screen.spStimProg(getVBat());
 
       // Start 1-minute spirometer test when entering this state
       spirometerStartTest();
@@ -232,6 +239,8 @@ void goToNextState() {
     case STATE_SPIROMETER_HOLD:
       state = STATE_DONE;
       web.finalResults(hr_baseline, hrv_baseline, (int)systolic_mmHg, (int)diastolic_mmHg, 
+        hr_cuff, hrv_cuff, hr_spirometer, hrv_spirometer, spirometerGetAverageBreathVolume_L(), getVBat());
+      screen.finalResults(hr_baseline, hrv_baseline, (int)systolic_mmHg, (int)diastolic_mmHg, 
         hr_cuff, hrv_cuff, hr_spirometer, hrv_spirometer, spirometerGetAverageBreathVolume_L(), getVBat());
 
       Serial.println("STATE_DONE");
@@ -255,16 +264,20 @@ void setup() {
   pinMode(STOP_BUTTON_PIN, INPUT_PULLUP);
   
   hrm.init(); // TODO: bool with error 
-  // bool cuffOK = bpCuff.bpCuffBegin();
+  bool cuffOK = bpCuff.bpCuffBegin();
 
   // Initialize spirometer pressure sensor and zero to atmosphere
-  // spirometerBegin();
+  spirometerBegin();
 
-  // if (!cuffOK) {
-  //   Serial.println("CUFF_SENSOR_FAILED");
-  //   state = STATE_ERROR;
-  //   return;
-  // }\
+  if (!cuffOK) {
+    Serial.println("CUFF_SENSOR_FAILED");
+    state = STATE_ERROR;
+    return;
+  }
+
+  // initialize screen
+  screen.init();
+  screen.startScreen(getVBat());
 
   // initialize web
   web.begin();
@@ -325,6 +338,7 @@ void loop() {
         hrv_baseline = hrm.rmssd;
 
         web.baseHRVresults(hr_baseline, hrv_baseline, getVBat());
+        screen.baseHRVresults(hr_baseline, hrv_baseline, getVBat());
 
         Serial.println("BASELINE_DONE");
 
@@ -358,6 +372,7 @@ void loop() {
             diastolic_mmHg = bp.diastolic;
 
             web.BPresults((int)systolic_mmHg, (int)diastolic_mmHg, getVBat());
+            screen.BPresults((int)systolic_mmHg, (int)diastolic_mmHg, getVBat());
 
             Serial.print("SYSTOLIC,");
             Serial.println(systolic_mmHg);
@@ -477,6 +492,7 @@ void loop() {
           hrv_spirometer = hrm.rmssd;
 
           web.spStimResults(hr_spirometer, hrv_spirometer, spirometerGetAverageBreathVolume_L(), getVBat());
+          screen.spStimResults(hr_spirometer, hrv_spirometer, spirometerGetAverageBreathVolume_L(), getVBat());
 
           Serial.println("SPIROMETER_DONE");
 
